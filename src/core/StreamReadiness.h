@@ -22,9 +22,12 @@ public:
     // Опрашивает url, пока не получит подтверждение готовности (200/206 и
     // непустое тело) либо не кончится число попыток. callback(ok, httpStatus)
     // вызывается ровно один раз. Не блокирует — все попытки асинхронные.
+    // referer — с вызывающей стороны (как в MpvPlayer::playUrl): для CVH-CDN
+    // используется animego.org, иначе — переданный, пустой = не слать.
     static void waitUntilReady(
         const QString &url,
         Route route,
+        const QString &referer,
         std::function<void(bool ok, int httpStatus)> callback,
         int maxAttempts = 60,
         int intervalMs = 500);

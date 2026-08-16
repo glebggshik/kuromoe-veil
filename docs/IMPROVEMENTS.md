@@ -66,17 +66,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 8. `StreamReadiness` — правильный Referer
-**Где:** `StreamReadiness.cpp` (сейчас захардкожен `https://animego.org/`)
-
-Для probe не-HLS/не-CVH ссылок referer может быть неверным → ложный fail.
-
-**Что сделать:** передавать referer/route с вызывающей стороны (как в `MpvPlayer::playUrl`).
-
-**Размер:** S
-
----
-
 ### 11. Ошибки источников в UI, не только в логе
 **Где:** `DetailBridge` loadKodik/loadCvh + QML
 

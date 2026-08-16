@@ -6,6 +6,25 @@
 #include "HistoryManager.h"
 #include "StreamReadiness.h"
 
+namespace {
+
+// Referer для стримов по источнику (единая логика для probe StreamReadiness
+// и для mpv): Kodik CDN проверяет Referer на m3u8/сегментах, Animetka/AniLibria
+// тоже. CVH-CDN обрабатывается отдельно (animego.org), пустая строка — не слать.
+QString refererFor(const QString &translationId, const QString &url) {
+    if (translationId.startsWith(QStringLiteral("kodik_")))
+        return QStringLiteral("https://kodikplayer.com/");
+    if (translationId.startsWith(QStringLiteral("animetka_"))
+        || url.contains(QStringLiteral("animetka.com"), Qt::CaseInsensitive)
+        || url.contains(QStringLiteral("notanime.ru"), Qt::CaseInsensitive)
+        || url.contains(QStringLiteral("libria.fun"), Qt::CaseInsensitive)
+        || url.contains(QStringLiteral("anilibria"), Qt::CaseInsensitive))
+        return QStringLiteral("https://animetka.com/");
+    return QString();
+}
+
+} // namespace
+
 PlaybackController::PlaybackController(QObject *parent) : QObject(parent) {
     connect(&m_torrentManager, &TorrentStreamManager::statusChanged, this, &PlaybackController::setStatusMessage);
     connect(&m_torrentManager, &TorrentStreamManager::buffering, this, &PlaybackController::setBuffering);
@@ -127,6 +146,7 @@ void PlaybackController::playDirectUrl(const QString &url, int episode, bool use
     StreamReadiness::waitUntilReady(
         url,
         useProxy ? StreamReadiness::Route::External : StreamReadiness::Route::Local,
+        refererFor(translationId, url),
         [this, url, generation](bool ok, int status) {
             if (generation != m_playGeneration)
                 return;
@@ -150,15 +170,7 @@ void PlaybackController::onStreamReady(const QString &url) {
     // NetworkManager — тот же принцип применяется и здесь для mpv).
     // Kodik CDN проверяет Referer на m3u8/сегментах — без него отдаёт
     // ошибку, которую mpv репортит как "loading failed".
-    QString referer;
-    if (m_currentTranslationId.startsWith(QStringLiteral("kodik_")))
-        referer = QStringLiteral("https://kodikplayer.com/");
-    else if (m_currentTranslationId.startsWith(QStringLiteral("animetka_"))
-             || url.contains(QStringLiteral("animetka.com"), Qt::CaseInsensitive)
-             || url.contains(QStringLiteral("notanime.ru"), Qt::CaseInsensitive)
-             || url.contains(QStringLiteral("libria.fun"), Qt::CaseInsensitive)
-             || url.contains(QStringLiteral("anilibria"), Qt::CaseInsensitive))
-        referer = QStringLiteral("https://animetka.com/");
+    const QString referer = refererFor(m_currentTranslationId, url);
     m_player->playUrl(url, QString("Серия %1").arg(m_currentEpisode), proxyUrl, referer);
     setStatusMessage(QString());
 }

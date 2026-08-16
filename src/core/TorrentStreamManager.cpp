@@ -379,7 +379,7 @@ void TorrentStreamManager::pickAndWaitStream(const QString &hash, const QJsonObj
     emit statusChanged("Буферизация потока...");
 
     StreamReadiness::waitUntilReady(
-        url, StreamReadiness::Route::Local,
+        url, StreamReadiness::Route::Local, QString(),
         [this, url, session](bool ok, int status) {
             if (!isCurrentSession(session))
                 return;
@@ -402,7 +402,7 @@ void TorrentStreamManager::playFile(const QString &hash, int fileId) {
     emit buffering(true);
     emit statusChanged("Буферизация потока...");
     StreamReadiness::waitUntilReady(
-        url, StreamReadiness::Route::Local,
+        url, StreamReadiness::Route::Local, QString(),
         [this, url, session](bool ok, int status) {
             if (!isCurrentSession(session)) return;
             emit buffering(false);
