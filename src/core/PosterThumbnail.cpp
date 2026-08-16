@@ -4,6 +4,7 @@
 
 #include <limits>
 
+#include <QColorSpace>
 #include <QFile>
 #include <QPainter>
 #include <QPainterPath>
@@ -134,6 +135,11 @@ QImage PosterThumbnail::loadScaledImage(const QString &path, int targetW, int ta
     QImage loaded(path);
     if (loaded.isNull())
         return {};
+    const QColorSpace srgb{QColorSpace::SRgb};
+    if (loaded.colorSpace().isValid() && loaded.colorSpace() != srgb)
+        loaded = loaded.convertedToColorSpace(srgb);
+    else
+        loaded.setColorSpace(srgb);
     const int w = qMax(1, targetW);
     const int h = qMax(1, targetH);
     if (aspectCrop) {

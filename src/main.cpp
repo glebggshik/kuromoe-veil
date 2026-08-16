@@ -9,9 +9,11 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QtGlobal>
+#include <QColorSpace>
 #include <QIcon>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QSurfaceFormat>
 
 #include <QMutex>
 #include <QQmlApplicationEngine>
@@ -129,6 +131,15 @@ int main(int argc, char *argv[]) {
 
     // QQuickFramebufferObject требует OpenGL scene graph (и для GPU-, и для SW-mpv).
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    // Wayland/NVIDIA без явного sRGB часто рисует JPEG «плоско», как будто
+    // палитра уже. Windows это делает сам через DWM.
+    QSurfaceFormat surfaceFmt = QSurfaceFormat::defaultFormat();
+    surfaceFmt.setColorSpace(QColorSpace::SRgb);
+    surfaceFmt.setRedBufferSize(8);
+    surfaceFmt.setGreenBufferSize(8);
+    surfaceFmt.setBlueBufferSize(8);
+    surfaceFmt.setAlphaBufferSize(8);
+    QSurfaceFormat::setDefaultFormat(surfaceFmt);
 
     // Пути к плагинам (platforms/, plugins/platforms/) должны быть заданы ДО
     // конструктора QGuiApplication — иначе qwindows[d].dll не находится.

@@ -9,6 +9,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QBuffer>
+#include <QColorSpace>
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
@@ -414,6 +415,28 @@ bool isValidHeroImage(const QImage &img, const QString &remoteUrl) {
     return isValidImageDims(img.width(), img.height(), remoteUrl);
 }
 
+void ensureSrgb8(QImage *img) {
+    if (!img || img->isNull())
+        return;
+    const QColorSpace srgb{QColorSpace::SRgb};
+    if (img->colorSpace().isValid() && img->colorSpace() != srgb)
+        *img = img->convertedToColorSpace(srgb);
+    else
+        img->setColorSpace(srgb);
+    // 16-bit / float на 8-bit Wayland без управления цветом даёт «мало цветов».
+    switch (img->format()) {
+    case QImage::Format_RGB32:
+    case QImage::Format_ARGB32:
+    case QImage::Format_ARGB32_Premultiplied:
+    case QImage::Format_RGB888:
+        break;
+    default:
+        *img = img->convertToFormat(QImage::Format_RGB888);
+        img->setColorSpace(srgb);
+        break;
+    }
+}
+
 bool decodeImageBytes(const QByteArray &data, const QString &remoteUrl, QImage *out) {
     if (data.size() < 1024 || !hasJpegEndMarker(data))
         return false;
@@ -422,9 +445,11 @@ bool decodeImageBytes(const QByteArray &data, const QString &remoteUrl, QImage *
     if (!buffer.open(QIODevice::ReadOnly))
         return false;
     QImageReader reader(&buffer);
-    const QImage img = reader.read();
+    reader.setAutoTransform(true);
+    QImage img = reader.read();
     if (img.isNull() || !isValidHeroImage(img, remoteUrl))
         return false;
+    ensureSrgb8(&img);
     if (out)
         *out = img;
     return true;
@@ -457,17 +482,8 @@ bool writeValidatedImage(const QString &dest, const QByteArray &data, const QStr
     if (!decodeImageBytes(data, remoteUrl, &probe))
         return false;
     QFile::remove(dest);
-    // Оригинал (jpeg/png/webp) без пересжатия — QImage::save JPEG=92 на Linux
-    // даёт заметный шакал на широких AniList-баннерах.
-    {
-        QFile out(dest);
-        if (out.open(QIODevice::WriteOnly) && out.write(data) == data.size()) {
-            out.close();
-            if (isValidImageFile(dest, remoteUrl))
-                return true;
-        }
-        QFile::remove(dest);
-    }
+    // sRGB 8-bit JPEG: на Linux Qt/Wayland часто не применяет ICC из оригинала
+    // (на Windows применяет) — фото выглядят выцветшими / «мало цветов».
     if (!probe.save(dest, "JPEG", 95))
         return false;
     return isValidImageFile(dest, remoteUrl);
