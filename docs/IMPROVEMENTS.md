@@ -86,8 +86,6 @@ Plaintext. Для личного ПК ок; для шаринга папки —
 | 20 | Thumbnails на таймлайне (thumbfast/mpv) | удобство seek | L |
 | 21 | Runtime fallback GPU → SW при «чёрном кадре» | железо без нормального GL | M |
 | 22 | Hot-switch темы без restart | комфорт; не обязательно | L |
-| 23 | `attachPlayer`: disconnect старого player | защита на будущее | S |
-| 24 | Версия схемы SQLite + миграции | будущие ALTER без боли | S |
 | 25 | Health-check индикатор (прокси / TorrServer / Kodik) | диагностика «почему не играет» | M |
 
 ---

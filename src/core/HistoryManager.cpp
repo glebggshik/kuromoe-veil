@@ -58,6 +58,27 @@ void HistoryManager::openDatabase() {
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     )");
+    migrateSchema();
+}
+
+void HistoryManager::migrateSchema() {
+    // PRAGMA user_version — версия схемы БД. Будущие изменения (ALTER,
+    // новые таблицы) добавляются сюда блоками if (version < N), а не в
+    // виде хаков "CREATE TABLE IF NOT EXISTS с новыми колонками", которые
+    // не умеют мигрировать существующие данные.
+    int version = 0;
+    {
+        QSqlQuery ver(m_db);
+        if (ver.exec("PRAGMA user_version") && ver.next())
+            version = ver.value(0).toInt();
+    }
+    if (version < 1) {
+        // v1 — начальная схема watch_progress (создана выше IF NOT EXISTS).
+        QSqlQuery setVer(m_db);
+        setVer.exec("PRAGMA user_version = 1");
+        version = 1;
+    }
+    Q_UNUSED(version);
 }
 
 QVariantMap HistoryManager::loadProgress(const QString &titleId) {

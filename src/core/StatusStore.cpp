@@ -49,6 +49,24 @@ void StatusStore::openDatabase() {
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     )");
+    migrateSchema();
+}
+
+void StatusStore::migrateSchema() {
+    // PRAGMA user_version — версия схемы БД (общая с HistoryManager, тот же
+    // файл). Будущие изменения — блоками if (version < N), а не хаками в
+    // CREATE TABLE IF NOT EXISTS (они не мигрируют существующие данные).
+    int version = 0;
+    {
+        QSqlQuery ver(m_db);
+        if (ver.exec("PRAGMA user_version") && ver.next())
+            version = ver.value(0).toInt();
+    }
+    if (version < 1) {
+        // v1 — начальные схемы watch_progress + anime_status (созданы выше).
+        QSqlQuery setVer(m_db);
+        setVer.exec("PRAGMA user_version = 1");
+    }
 }
 
 void StatusStore::setStatus(const QString &titleId, const QString &status,

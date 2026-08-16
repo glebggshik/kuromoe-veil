@@ -48,6 +48,14 @@ void PlaybackController::attachPlayer(QObject *player) {
     }
     if (m_player == mpv)
         return;
+    if (m_player) {
+        // Старый плеер больше не управляется контроллером — рвём все его
+        // сигналы в контроллер. Иначе его EOF/позиция продолжали бы дёргать
+        // контроллер, уже привязанный к новому плееру (двойная запись в
+        // историю, ложный авто-переход на следующую серию).
+        disconnect(m_player, nullptr, this, nullptr);
+        m_player = nullptr;
+    }
     m_player = mpv;
     connect(mpv, &MpvPlayer::hasMediaChanged, this, &PlaybackController::onPlayerHasMedia);
     connect(mpv, &MpvPlayer::positionChanged, this, &PlaybackController::onPlayerPosition);

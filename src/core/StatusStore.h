@@ -32,6 +32,7 @@ public:
 
 private:
     void openDatabase();
+    void migrateSchema();
 
     QSqlDatabase m_db;
 };

@@ -59,6 +59,7 @@ public slots:
 
 private:
     void openDatabase();
+    void migrateSchema();
 
     QSqlDatabase m_db;
     QTimer m_saveTimer; // 5 секунд — см. требование автосохранения тайминга
