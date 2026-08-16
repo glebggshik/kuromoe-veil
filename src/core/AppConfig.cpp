@@ -349,6 +349,7 @@ QString AppConfig::mpvProxyUrl() const {
 }
 
 QString AppConfig::autoDetectTorrServer() const {
+    // Windows: exe в Downloads (как раньше).
     const QStringList names = {"TorrServer-windows-amd64.exe", "torrserver.exe"};
     const QStringList dirs = {
         QStandardPaths::writableLocation(QStandardPaths::DownloadLocation),
@@ -362,6 +363,19 @@ QString AppConfig::autoDetectTorrServer() const {
             if (QFile::exists(path))
                 return path;
         }
+    }
+
+    // Linux/macOS: бинарь в PATH (torrserver/TorrServer) или в стандартных
+    // местах (/usr/bin, /usr/local/bin). Windows-пути выше не трогаем.
+    for (const QString &name : {QStringLiteral("torrserver"), QStringLiteral("TorrServer")}) {
+        const QString found = QStandardPaths::findExecutable(name);
+        if (!found.isEmpty())
+            return found;
+    }
+    for (const QString &path : {QStringLiteral("/usr/bin/torrserver"),
+                                QStringLiteral("/usr/local/bin/torrserver")}) {
+        if (QFile::exists(path))
+            return path;
     }
     return QString();
 }
