@@ -158,7 +158,10 @@ QVariantMap HistoryManager::mostRecent() {
         return result;
 
     QSqlQuery q(m_db);
-    q.exec("SELECT title_id, episode FROM watch_progress ORDER BY updated_at DESC LIMIT 1");
+    // updated_at — с точностью до секунды: несколько записей в одну секунду
+    // дают недетерминированный результат. Tie-break по rowid (порядок
+    // вставки) — «самый последний написанный» при равном времени.
+    q.exec("SELECT title_id, episode FROM watch_progress ORDER BY updated_at DESC, rowid DESC LIMIT 1");
     if (!q.next())
         return result;
 

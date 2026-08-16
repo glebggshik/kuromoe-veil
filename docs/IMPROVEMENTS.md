@@ -45,16 +45,17 @@ PRAGMA synchronous=NORMAL;
 ## P2 — инфра и гигиена
 
 ### 15. Unit-тесты (то, что не зависит от сети)
-**Сделано:** `EpisodeParser` — `tests/test_episode_parser.cpp`, Qt Test, подключён к
-`ctest` (`include(CTest)` + `add_subdirectory(tests)`, `-DBUILD_TESTING=OFF` отключает).
-Заодно тест поймал и починил баг: формат `S01E05` (сезон+серия) не распознавался.
+**Сделано:** `EpisodeParser` — `tests/test_episode_parser.cpp` (пойман и починен баг
+`S01E05`); ранжирование/поиск торрентов вынесены в `TorrentRanking.{h,cpp}` и покрыты
+(`tests/test_torrent_ranking.cpp`); `HistoryManager` — `tests/test_history_manager.cpp`
+(temp SQLite; заодно `mostRecent()` получил детерминированный tie-break по rowid —
+`updated_at` с точностью до секунды). Всё подключено к `ctest` (`-DBUILD_TESTING=OFF`
+отключает), 3 теста зелёные.
 
 **Осталось:**
-| Модуль | Почему легко |
+| Модуль | Почему сложнее |
 |--------|----------------|
-| torrent relevance / query builders | вынести из анонимного namespace `DetailBridge.cpp` |
-| `HistoryManager` | temp SQLite file |
-| Kodik HTML parse | fixtures из `tools/` dumps |
+| Kodik HTML parse | нужны fixtures из `tools/` dumps + вынос парсера из `KodikClient.cpp` |
 
 **Размер:** M
 
@@ -66,15 +67,6 @@ PRAGMA synchronous=NORMAL;
 **Что сделать (когда будет время):** `windeployqt` + явный copy `libmpv-2.dll`; document `MPV_ROOT` / env вместо только `C:/dev/libmpv`.
 
 **Размер:** M
-
----
-
-### 18. Пароль прокси в `config.ini`
-Plaintext. Для личного ПК ок; для шаринга папки — нет.
-
-**Что сделать (опционально):** Windows DPAPI / не писать password в portable zip (packaging уже кладёт example без секретов — проверить, что так и останется).
-
-**Размер:** S
 
 ---
 
