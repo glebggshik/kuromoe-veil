@@ -44,16 +44,13 @@ QString PosterCache::cacheDir() const {
 }
 
 QString PosterCache::cachePathFor(const QString &remoteUrl) const {
+    // Единый jpeg-path: кэш ВСЕГДА хранит пере-кодированный JPEG
+    // (writeValidatedImage сохраняет в JPEG), независимо от формата
+    // исходника (.jpg/.png/.webp). Раньше расширение бралось из URL —
+    // файл мог называться .webp, а содержать JPEG (или наоборот: webp-URL
+    // вообще не сохранялся, decodeImageBytes требовал JPEG-маркеры).
     const QByteArray hash = QCryptographicHash::hash(remoteUrl.toUtf8(), QCryptographicHash::Sha1).toHex();
-    QString ext = QStringLiteral("img");
-    if (remoteUrl.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive)
-        || remoteUrl.contains(QStringLiteral(".jpg"), Qt::CaseInsensitive))
-        ext = QStringLiteral("jpg");
-    else if (remoteUrl.contains(QStringLiteral(".png"), Qt::CaseInsensitive))
-        ext = QStringLiteral("png");
-    else if (remoteUrl.contains(QStringLiteral(".webp"), Qt::CaseInsensitive))
-        ext = QStringLiteral("webp");
-    return cacheDir() + QLatin1Char('/') + QString::fromLatin1(hash) + QLatin1Char('.') + ext;
+    return cacheDir() + QLatin1Char('/') + QString::fromLatin1(hash) + QStringLiteral(".jpg");
 }
 
 QString PosterCache::posterId(const QString &remoteUrl) const {
@@ -380,8 +377,25 @@ void ensureSrgb8(QImage *img) {
     }
 }
 
+// PNG/WebP магические байты — JPEG-проверка по концевым маркерам их не
+// пропускает, а такие постеры (AniList/Shikimori и др.) реально приходят.
+bool isPngOrWebp(const QByteArray &data) {
+    if (data.size() >= 12 && data.startsWith("RIFF") && data.mid(8, 4) == "WEBP")
+        return true;
+    if (data.size() >= 8 && static_cast<unsigned char>(data.at(0)) == 0x89
+        && data.mid(1, 3) == "PNG")
+        return true;
+    return false;
+}
+
 bool decodeImageBytes(const QByteArray &data, const QString &remoteUrl, QImage *out) {
-    if (data.size() < 1024 || !hasJpegEndMarker(data))
+    if (data.size() < 1024)
+        return false;
+    // JPEG — быстрое отсечение по концевым маркерам (ловит обрезанные
+    // загрузки); PNG/WebP проверяем по магическим байтам. WebP декодируется
+    // только при наличии плагина (qtimageformats) — иначе QImageReader вернёт
+    // null, и файл честно отбракуется, а не молча сохранится битым.
+    if (!hasJpegEndMarker(data) && !isPngOrWebp(data))
         return false;
     QBuffer buffer;
     buffer.setData(data);
