@@ -168,6 +168,9 @@ Item {
         id: mouseArea
         anchors.fill: parent
         hoverEnabled: true
+        // Не давать странице-скроллу (Flickable) красть жест: при перемотке
+        // зажатый курсор не должен свайпать/скроллить страницу.
+        preventStealing: true
 
         function seekAt(x) {
             if (!root.player || root.duration <= 0)
