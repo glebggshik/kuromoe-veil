@@ -267,7 +267,9 @@ void appendTitleQueries(QStringList *queries, QSet<QString> *seen, const QString
 
     appendQueryVariants(queries, seen, trimmed);
 
-    for (const QChar sep : {QLatin1Char('/'), QLatin1Char('—')}) {
+    // '—' в UTF-8 — многобайтовый символ, поэтому литерал '—' компилятор усекает
+    // до 0x94 и разделитель никогда не совпадает с настоящим U+2014. Берём QChar явно.
+    for (const QChar sep : {QChar(u'/'), QChar(0x2014)}) {
         const int idx = trimmed.indexOf(sep);
         if (idx <= 0)
             continue;
@@ -1308,8 +1310,10 @@ void DetailBridge::playSmashMixed(int episode, const QString &audioTranslationId
     // playTorrentEpisode() сбрасывает хинт — ставим заново, ПОСЛЕ вызова.
     m_playback->setSmashAudioHint(audioTranslationId);
 
-    if (audioTranslationId.isEmpty())
+    if (audioTranslationId.isEmpty()) {
+        emit error(QStringLiteral("Смэш: озвучка не выбрана — видео играет без звука"));
         return;
+    }
 
     QPointer<DetailBridge> self(this);
     if (audioTranslationId.startsWith(QStringLiteral("cvh_"))) {
@@ -1349,5 +1353,8 @@ void DetailBridge::playSmashMixed(int episode, const QString &audioTranslationId
                                       if (self->m_playback)
                                           self->m_playback->attachExternalAudio(url, true);
                                   });
+    } else {
+        emit error(QStringLiteral("Смэш: неизвестный источник озвучки «%1» — видео играет без звука")
+                       .arg(audioTranslationId));
     }
 }

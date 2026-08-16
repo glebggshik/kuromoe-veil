@@ -66,17 +66,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 7. Smash: не молчать при ошибках audio
-**Где:** `DetailBridge::playSmashMixed`
-
-Если нет `animegoId` / пустой URL — тихий `return`. Видео играет без озвучки без сообщения.
-
-**Что сделать:** `emit error(...)` с понятным текстом.
-
-**Размер:** S
-
----
-
 ### 8. `StreamReadiness` — правильный Referer
 **Где:** `StreamReadiness.cpp` (сейчас захардкожен `https://animego.org/`)
 
