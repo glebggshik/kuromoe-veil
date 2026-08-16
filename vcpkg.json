@@ -1,0 +1,13 @@
+{
+  "name": "kuromoe-veil",
+  "version-string": "0.1.0",
+  "description": "C++ anime client (Qt 6 + libmpv). Only the Qt modules we actually link.",
+  "dependencies": [
+    {
+      "name": "qtbase",
+      "features": ["sql-sqlite"]
+    },
+    "qtdeclarative",
+    "qtsvg"
+  ]
+}

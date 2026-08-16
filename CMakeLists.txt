@@ -14,6 +14,9 @@ endif()
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
+# Не ставь весь метапакет qt6 / `vcpkg install qt` — WebEngine, Multimedia,
+# Quick3D и т.п. не используются. Достаточно qtbase + qtdeclarative + qtsvg
+# (см. vcpkg.json и README).
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Network Sql OpenGL Svg Concurrent)
 
 # --- libmpv ---

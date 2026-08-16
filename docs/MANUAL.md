@@ -90,7 +90,7 @@ run-debug.bat
 
 ### Зависимости
 
-- **Qt 6** — через vcpkg (`x64-windows`)
+- **Qt 6** — только `qtbase` + `qtdeclarative` + `qtsvg` (`vcpkg.json`). Не ставить метапакет `qt`.
 - **libmpv** — **не** из vcpkg; готовая сборка `C:/dev/libmpv` (shinchiro mpv-dev-x86_64)
 - **CMake** ≥ 3.21, **MSVC**, C++20
 
