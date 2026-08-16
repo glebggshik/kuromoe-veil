@@ -22,6 +22,7 @@ GridView {
     cacheBuffer: cellH * 3
     clip: true
     boundsBehavior: Flickable.StopAtBounds
+    reuseItems: true
 
     delegate: Item {
         width: root.cellWidth

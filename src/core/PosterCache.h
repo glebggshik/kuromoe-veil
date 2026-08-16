@@ -31,6 +31,9 @@ public:
 
     QString filePathForId(const QString &id) const;
 
+    // LRU: если кэш постеров > 500 МБ — удалить самые старые файлы.
+    void enforceCacheLimit();
+
 signals:
     void posterReady(const QString &remoteUrl, const QString &fileUrl);
 
@@ -56,4 +59,8 @@ private:
     int m_active = 0;
 
     static constexpr int kMaxConcurrent = 4;
+    static constexpr qint64 kMaxCacheSizeBytes = 500 * 1024 * 1024;
+
+    void scheduleCacheLimitCheck();
+    bool m_lruPending = false;
 };

@@ -17,9 +17,11 @@
 #include <QElapsedTimer>
 #include <QPointer>
 #include <QStandardPaths>
+#include <QDateTime>
 #include <QTimer>
 #include <QUrl>
 #include <QtConcurrent>
+#include <algorithm>
 #include <memory>
 
 namespace {
@@ -33,7 +35,9 @@ PosterCache *PosterCache::instance() {
     return inst;
 }
 
-PosterCache::PosterCache(QObject *parent) : QObject(parent) {}
+PosterCache::PosterCache(QObject *parent) : QObject(parent) {
+    QTimer::singleShot(5000, this, &PosterCache::enforceCacheLimit);
+}
 
 QString PosterCache::cacheDir() const {
     return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/posters");
@@ -520,6 +524,7 @@ QString PosterCache::ensureCachedSync(const QString &remoteUrl) {
     const QString fileUrl = QUrl::fromLocalFile(dest).toString();
     m_done.insert(remoteUrl, fileUrl);
     emit posterReady(remoteUrl, fileUrl);
+    scheduleCacheLimitCheck();
     return fileUrl;
 }
 
@@ -619,10 +624,76 @@ void PosterCache::pump() {
                         const QString fileUrl = QUrl::fromLocalFile(dest).toString();
                         self->m_done.insert(url, fileUrl);
                         emit self->posterReady(url, fileUrl);
+                        self->scheduleCacheLimitCheck();
                     }
                     self->pump();
                 }, Qt::QueuedConnection);
             });
         });
+    }
+}
+
+void PosterCache::scheduleCacheLimitCheck() {
+    if (m_lruPending)
+        return;
+    m_lruPending = true;
+    QTimer::singleShot(2000, this, [this]() {
+        m_lruPending = false;
+        enforceCacheLimit();
+    });
+}
+
+void PosterCache::enforceCacheLimit() {
+    const QString dir = cacheDir();
+    QDir qdir(dir);
+    if (!qdir.exists())
+        return;
+
+    struct CacheEntry {
+        QString path;
+        qint64 size;
+        QDateTime mtime;
+    };
+
+    QList<CacheEntry> entries;
+    qint64 totalSize = 0;
+    const auto files = qdir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+    entries.reserve(files.size());
+    for (const QFileInfo &fi : files) {
+        entries.append(CacheEntry{fi.absoluteFilePath(), fi.size(), fi.lastModified()});
+        totalSize += fi.size();
+    }
+    if (totalSize <= kMaxCacheSizeBytes)
+        return;
+
+    std::sort(entries.begin(), entries.end(), [](const CacheEntry &a, const CacheEntry &b) {
+        return a.mtime < b.mtime;
+    });
+
+    int removed = 0;
+    qint64 freed = 0;
+    for (const auto &entry : entries) {
+        if (totalSize <= kMaxCacheSizeBytes)
+            break;
+        if (!QFile::remove(entry.path))
+            continue;
+        totalSize -= entry.size;
+        freed += entry.size;
+        ++removed;
+        m_validatedSizes.remove(entry.path);
+        for (auto it = m_done.begin(); it != m_done.end();) {
+            if (QUrl(it.value()).toLocalFile() == entry.path)
+                it = m_done.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    if (removed > 0) {
+        qInfo(
+            "PosterCache: LRU cleanup removed %d files (%.1f MB freed, total %.1f MB)",
+            removed,
+            freed / (1024.0 * 1024.0),
+            totalSize / (1024.0 * 1024.0));
     }
 }
