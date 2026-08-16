@@ -52,6 +52,18 @@ Item {
             active)
     }
 
+    // Скраб не должен срываться, когда курсор уходит с полоски вверх/вниз:
+    // вызывается из слоя ввода PlayerOverlay (покрывает весь плеер) и
+    // продолжает вести seek по горизонтали, пока кнопка зажата.
+    function seekFromGlobalX(globalX) {
+        if (!root.scrubbing || !root.player || root.duration <= 0)
+            return
+        var localX = globalX - root.x // общая система координат с PlayerOverlay
+        root.pointerX = localX
+        var ratio = Math.max(0, Math.min(1, localX / root.width))
+        root.player.seek(ratio * root.duration)
+    }
+
     onPreviewSecondsChanged: if (root.scrubbing) root.pushPreview(true)
 
     function formatTime(seconds) {

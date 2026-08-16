@@ -499,6 +499,11 @@ Item {
             root.mouseY = mouse.y
             root.setTargets(mouse.x, mouse.y)
             root.scheduleAutoHide()
+            // Продолжаем скраб, если кнопка была зажата на таймлайне, а курсор
+            // ушёл вверх/вниз с 40px-полоски — полоска сама события уже не
+            // получает.
+            if (uoscTimeline.scrubbing)
+                uoscTimeline.seekFromGlobalX(mouse.x)
         }
         onEntered: {
             root.mouseInside = true
@@ -1106,7 +1111,10 @@ Item {
         // чёрной плашки.
         Item {
             id: thumbPopup
-            visible: uoscTimeline.hovered && uoscTimeline.duration > 0
+            // pointerX >= 0: после отпускания таймлайна pointerX = -1, иначе
+            // попап (x = pointerX - width/2 -> clamp 0) прыгал бы над начало
+            // полоски на мгновение, пока курсор ещё над ней.
+            visible: uoscTimeline.hovered && uoscTimeline.pointerX >= 0 && uoscTimeline.duration > 0
             readonly property bool hasFrame: thumbProbe.frameVersion > 0
             width: thumbPopup.hasFrame ? 176 : (thumbTimePill.width + 12)
             height: thumbPopup.hasFrame ? 99 : (thumbTimePill.height + 4)
