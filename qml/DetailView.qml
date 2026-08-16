@@ -676,7 +676,12 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "cvh" && root.translationsLoaded && !root.cvhAvailable
-                    text: "CVH: озвучки не найдены на AnimeGO (для этого тайтла может не быть CVH)"
+                    text: {
+                        var st = bridge.sourceStatus["cvh"]
+                        if (st && st.state === "error")
+                            return "CVH: ошибка — " + (st.message || "источник недоступен")
+                        return "CVH: озвучки не найдены на AnimeGO (для этого тайтла может не быть CVH)"
+                    }
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
@@ -684,7 +689,12 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "kodik" && root.translationsLoaded && !root.kodikAvailable
-                    text: "Kodik: озвучки не найдены (см. Настройки → прокси, либо временная блокировка)"
+                    text: {
+                        var st = bridge.sourceStatus["kodik"]
+                        if (st && st.state === "error")
+                            return "Kodik: ошибка — " + (st.message || "источник недоступен") + " (нужен прокси?)"
+                        return "Kodik: озвучки не найдены (см. Настройки → прокси, либо временная блокировка)"
+                    }
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
@@ -692,7 +702,12 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "animetka" && root.translationsLoaded && !root.animetkaAvailable
-                    text: "Animetka: тайтл не найден или API недоступен"
+                    text: {
+                        var st = bridge.sourceStatus["animetka"]
+                        if (st && st.state === "error")
+                            return "Animetka: ошибка — " + (st.message || "источник недоступен")
+                        return "Animetka: тайтл не найден или API недоступен"
+                    }
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap

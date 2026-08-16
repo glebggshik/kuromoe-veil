@@ -55,17 +55,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 11. Ошибки источников в UI, не только в логе
-**Где:** `DetailBridge` loadKodik/loadCvh + QML
-
-В логе: empty Kodik, CVH failed; в UI часто пустой список без «нужен прокси / не найдено».
-
-**Что сделать:** per-source статус: loading / ok / empty / error(+hint про прокси для Kodik).
-
-**Размер:** M
-
----
-
 ## P2 — инфра и гигиена
 
 ### 14. Git

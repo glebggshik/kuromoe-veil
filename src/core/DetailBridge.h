@@ -23,6 +23,10 @@
 class DetailBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString currentStatus READ currentStatus NOTIFY statusChanged)
+    // Per-source состояние загрузки озвучек для UI: source -> {state, message},
+    // state: "loading" | "ok" | "empty" | "error". Источники: cvh, kodik,
+    // animetka, hentasis, anistar. Показываем ошибку/пустоту не только в логе.
+    Q_PROPERTY(QVariantMap sourceStatus READ sourceStatus NOTIFY sourceStatusChanged)
 
 public:
     explicit DetailBridge(QObject *parent = nullptr);
@@ -40,6 +44,7 @@ public:
     Q_INVOKABLE void playSmashMixed(int episode, const QString &audioTranslationId);
 
     QString currentStatus() const;
+    QVariantMap sourceStatus() const { return m_sourceStatus; }
 
 signals:
     void detailsReady(const QVariant &item);
@@ -48,6 +53,7 @@ signals:
     void anilibriaEpisodesReady(int count);
     void relatedReady(const QVariantList &items);
     void statusChanged();
+    void sourceStatusChanged();
     void torrentsReady(const QVariantList &list);
     void torrentsLoading(bool loading);
     void progressReady(int episode, const QString &translationId, const QString &torrentMagnet);
@@ -60,6 +66,8 @@ private:
     void loadKodik();
     void loadAnimetka();
     void loadHentaiSources();
+    void setSourceStatus(const QString &source, const QString &state, const QString &message);
+    QVariantMap m_sourceStatus;
 
     ShikimoriClient m_shikimori;
     AniLibriaClient m_anilibria;

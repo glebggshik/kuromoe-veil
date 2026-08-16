@@ -540,6 +540,16 @@ QString DetailBridge::currentStatus() const {
     return StatusStore::instance()->currentStatus(m_item.value("id").toString());
 }
 
+void DetailBridge::setSourceStatus(const QString &source, const QString &state, const QString &message) {
+    QVariantMap entry;
+    entry[QStringLiteral("state")] = state;
+    entry[QStringLiteral("message")] = message;
+    if (m_sourceStatus.value(source).toMap() == entry)
+        return;
+    m_sourceStatus[source] = entry;
+    emit sourceStatusChanged();
+}
+
 void DetailBridge::load(const QVariant &item) {
     m_item = item.toMap();
     QString id = m_item.value("id").toString();
@@ -571,6 +581,8 @@ void DetailBridge::load(const QVariant &item) {
     ++m_animetkaGen;
     ++m_hentaiSourcesGen;
     ++m_loadGen;
+    m_sourceStatus.clear();
+    emit sourceStatusChanged();
     emit statusChanged();
 
     QVariantMap progress = HistoryManager::instance()->loadProgress(id);
@@ -740,6 +752,7 @@ void DetailBridge::loadCvh() {
         return;
     }
     m_cvhInFlight = true;
+    setSourceStatus(QStringLiteral("cvh"), QStringLiteral("loading"), QString());
 
     ++m_cvhGen;
     const int gen = m_cvhGen;
@@ -757,6 +770,7 @@ void DetailBridge::loadCvh() {
                                        return;
                                    self->m_cvhInFlight = false;
                                    if (!err.isEmpty()) {
+                                       self->setSourceStatus(QStringLiteral("cvh"), QStringLiteral("error"), err);
                                        qWarning("DetailBridge: CVH failed for %s — %s", qUtf8Printable(id),
                                                 qUtf8Printable(err));
                                        // Не шлём в общий statusText — это бы показывало ошибку CVH,
@@ -765,8 +779,10 @@ void DetailBridge::loadCvh() {
                                        // отдельным индикатором под кнопкой CVH, видимым только когда
                                        // CVH выбран — см. DetailView.qml.
                                    } else if (list.isEmpty()) {
+                                       self->setSourceStatus(QStringLiteral("cvh"), QStringLiteral("empty"), QString());
                                        qWarning("DetailBridge: CVH empty translations for %s", qUtf8Printable(id));
                                    } else {
+                                       self->setSourceStatus(QStringLiteral("cvh"), QStringLiteral("ok"), QString());
                                        self->m_cvhReady = true;
                                        self->m_animegoId = list.first().toMap().value(QStringLiteral("animegoId")).toString();
                                        qInfo("DetailBridge: CVH ready for %s (animego=%s, %d voices)",
@@ -792,14 +808,17 @@ void DetailBridge::loadKodik() {
 
     ++m_kodikGen;
     const int gen = m_kodikGen;
+    setSourceStatus(QStringLiteral("kodik"), QStringLiteral("loading"), QString());
 
     QPointer<DetailBridge> self(this);
     m_kodik.loadTranslations(id, [self, id, gen](QVariantList list, QString err) {
         if (!self || gen != self->m_kodikGen)
             return;
         if (!err.isEmpty()) {
+            self->setSourceStatus(QStringLiteral("kodik"), QStringLiteral("error"), err);
             qWarning("DetailBridge: Kodik failed for %s — %s", qUtf8Printable(id), qUtf8Printable(err));
         } else if (list.isEmpty()) {
+            self->setSourceStatus(QStringLiteral("kodik"), QStringLiteral("empty"), QString());
             qWarning("DetailBridge: Kodik empty translations for %s", qUtf8Printable(id));
         } else {
             self->m_kodikReady = true;
@@ -826,6 +845,7 @@ void DetailBridge::loadAnimetka() {
 
     ++m_animetkaGen;
     const int gen = m_animetkaGen;
+    setSourceStatus(QStringLiteral("animetka"), QStringLiteral("loading"), QString());
 
     const QString title = m_item.value(QStringLiteral("title")).toString();
     const QString originalTitle = m_item.value(QStringLiteral("originalTitle")).toString();
@@ -838,9 +858,11 @@ void DetailBridge::loadAnimetka() {
                                     if (!self || gen != self->m_animetkaGen)
                                         return;
                                     if (!err.isEmpty()) {
+                                        self->setSourceStatus(QStringLiteral("animetka"), QStringLiteral("error"), err);
                                         qWarning("DetailBridge: Animetka failed for %s — %s",
                                                  qUtf8Printable(id), qUtf8Printable(err));
                                     } else if (list.isEmpty()) {
+                                        self->setSourceStatus(QStringLiteral("animetka"), QStringLiteral("empty"), QString());
                                         qWarning("DetailBridge: Animetka empty for %s", qUtf8Printable(id));
                                     } else {
                                         self->m_animetkaReady = true;
@@ -867,18 +889,24 @@ void DetailBridge::loadHentaiSources() {
 
     ++m_hentaiSourcesGen;
     const int gen = m_hentaiSourcesGen;
+    setSourceStatus(QStringLiteral("hentasis"), QStringLiteral("loading"), QString());
+    setSourceStatus(QStringLiteral("anistar"), QStringLiteral("loading"), QString());
 
     QPointer<DetailBridge> self(this);
     m_hentasis.loadTranslations(title, originalTitle, englishTitle, japaneseTitle, year,
                                 [self, gen](QVariantList list, QString err) {
                                     if (!self || gen != self->m_hentaiSourcesGen)
                                         return;
-                                    if (!err.isEmpty())
+                                    if (!err.isEmpty()) {
+                                        self->setSourceStatus(QStringLiteral("hentasis"), QStringLiteral("error"), err);
                                         qWarning("DetailBridge: Hentasis failed — %s", qUtf8Printable(err));
-                                    else if (list.isEmpty())
+                                    } else if (list.isEmpty()) {
+                                        self->setSourceStatus(QStringLiteral("hentasis"), QStringLiteral("empty"), QString());
                                         qWarning("DetailBridge: Hentasis not found");
-                                    else
+                                    } else {
+                                        self->setSourceStatus(QStringLiteral("hentasis"), QStringLiteral("ok"), QString());
                                         qInfo("DetailBridge: Hentasis ready (%d tracks)", list.size());
+                                    }
                                     self->m_hentasisReady = !list.isEmpty();
                                     self->m_hentasisTranslations = list;
                                     self->emitMergedTranslations();
@@ -889,12 +917,16 @@ void DetailBridge::loadHentaiSources() {
                                    QVariantList list, QString err) {
                                    if (!self || gen != self->m_hentaiSourcesGen)
                                        return;
-                                   if (!err.isEmpty())
+                                   if (!err.isEmpty()) {
+                                       self->setSourceStatus(QStringLiteral("anistar"), QStringLiteral("error"), err);
                                        qWarning("DetailBridge: AniStar stream failed — %s", qUtf8Printable(err));
-                                   else if (list.isEmpty())
+                                   } else if (list.isEmpty()) {
+                                       self->setSourceStatus(QStringLiteral("anistar"), QStringLiteral("empty"), QString());
                                        qInfo("DetailBridge: AniStar direct stream not found");
-                                   else
+                                   } else {
+                                       self->setSourceStatus(QStringLiteral("anistar"), QStringLiteral("ok"), QString());
                                        qInfo("DetailBridge: AniStar stream ready (%d tracks)", list.size());
+                                   }
                                    self->m_anistarReady = !list.isEmpty();
                                    self->m_anistarTranslations = list;
                                    self->emitMergedTranslations();

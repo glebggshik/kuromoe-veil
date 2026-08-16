@@ -912,7 +912,12 @@ Item {
                     visible: root.sourceType === "cvh" && root.translationsLoaded && !root.cvhAvailable
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: "// CVH: озвучки не найдены на AnimeGO для этого тайтла"
+                    text: {
+                        var st = bridge.sourceStatus["cvh"]
+                        if (st && st.state === "error")
+                            return "// CVH: ошибка — " + (st.message || "источник недоступен")
+                        return "// CVH: озвучки не найдены на AnimeGO для этого тайтла"
+                    }
                     font.family: RetroTheme.fontFamily
                     font.pixelSize: 10
                     color: RetroTheme.destructive
@@ -921,7 +926,12 @@ Item {
                     visible: root.sourceType === "animetka" && root.translationsLoaded && !root.animetkaAvailable
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: "// Animetka: тайтл не найден или API недоступен"
+                    text: {
+                        var st = bridge.sourceStatus["animetka"]
+                        if (st && st.state === "error")
+                            return "// Animetka: ошибка — " + (st.message || "источник недоступен")
+                        return "// Animetka: тайтл не найден или API недоступен"
+                    }
                     font.family: RetroTheme.fontFamily
                     font.pixelSize: 10
                     color: RetroTheme.destructive
@@ -930,7 +940,12 @@ Item {
                     visible: root.sourceType === "kodik" && root.translationsLoaded && !root.kodikAvailable
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: "// Kodik: озвучки не найдены (см. Настройки → прокси)"
+                    text: {
+                        var st = bridge.sourceStatus["kodik"]
+                        if (st && st.state === "error")
+                            return "// Kodik: ошибка — " + (st.message || "источник недоступен") + " (нужен прокси?)"
+                        return "// Kodik: озвучки не найдены (см. Настройки → прокси)"
+                    }
                     font.family: RetroTheme.fontFamily
                     font.pixelSize: 10
                     color: RetroTheme.destructive
