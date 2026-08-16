@@ -296,7 +296,7 @@ flowchart TB
 
 ### Debug-особенность
 
-После `app.exec()` в `_DEBUG` вызывается `std::quick_exit()` — обход SIGSEGV в деструкторах `QNetworkAccessManager`.
+После `app.exec()` — обычный `return`. Синглтоны parent'ятся к `qApp`, чтобы не умирать после `QGuiApplication`.
 
 ---
 
@@ -1000,7 +1000,7 @@ cmake --build build --config Release --target anime_client_cpp
 | LNK1168 при сборке | Exe запущен | `stop-app.bat` |
 | QML не обновился | Ресурсы в exe | Пересобрать |
 | Прокси в portable-сборке | Запуск без portable ini / старый AppData | Проверить `config.ini` рядом с exe |
-| Краш после выхода Debug | QNetworkAccessManager | `quick_exit` — известный workaround |
+| Краш после выхода Debug | деструкторы синглтонов после QApp | синглтоны — `new T(qApp)`, не `static T` |
 | Микрофриз «Закладки» | До `warmPosters` | Подождать ~1.2 s после splash |
 
 \*Прокси на JacRed не применяется кодом; пустой результат — чаще неверный запрос или нет раздач.

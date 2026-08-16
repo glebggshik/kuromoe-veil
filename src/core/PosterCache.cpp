@@ -3,6 +3,7 @@
 #include "AppConfig.h"
 #include "NetworkManager.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QEventLoop>
@@ -28,8 +29,8 @@ bool isValidImageFile(const QString &path, const QString &remoteUrl);
 } // namespace
 
 PosterCache *PosterCache::instance() {
-    static PosterCache inst;
-    return &inst;
+    static PosterCache *inst = new PosterCache(QCoreApplication::instance());
+    return inst;
 }
 
 PosterCache::PosterCache(QObject *parent) : QObject(parent) {}

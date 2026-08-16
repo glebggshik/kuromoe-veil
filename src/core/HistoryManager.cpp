@@ -1,5 +1,6 @@
 #include "HistoryManager.h"
 
+#include <QCoreApplication>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariantMap>
@@ -21,8 +22,8 @@ HistoryManager::~HistoryManager() {
 }
 
 HistoryManager *HistoryManager::instance() {
-    static HistoryManager inst;
-    return &inst;
+    static HistoryManager *inst = new HistoryManager(QCoreApplication::instance());
+    return inst;
 }
 
 void HistoryManager::openDatabase() {

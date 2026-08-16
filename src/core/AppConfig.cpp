@@ -101,8 +101,9 @@ AppConfig::AppConfig(QObject *parent)
 }
 
 AppConfig *AppConfig::instance() {
-    static AppConfig inst;
-    return &inst;
+    // Куча + parent=qApp: не умирает после QGuiApplication (иначе 0xC0000005).
+    static AppConfig *inst = new AppConfig(QCoreApplication::instance());
+    return inst;
 }
 
 QString AppConfig::settingsFilePath() const {

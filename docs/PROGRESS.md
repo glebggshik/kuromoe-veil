@@ -205,7 +205,7 @@ Main.qml                  — ApplicationWindow, нижняя навигация
 
 - GraphQL Shikimori: поля постера `previewUrl` / `main2xUrl` / … (не `x96Url`).
 - Календарь Debug: текстовые строки без массовых QML `Image`; GraphQL-enrich отключён в `#ifndef NDEBUG`.
-- `quick_exit` в Debug после `app.exec()` — обход краша деструкторов.
+- Shutdown: синглтоны `new T(qApp)`, обычный `return` из `main` (без `quick_exit`).
 - Platform plugin / `QT_PLUGIN_PATH` в `main.cpp`; иконка через `app.rc` + `gen_icon`.
 - TorrServer: авто re-add magnet при HTTP 404.
 - Центрирование pill-кнопок Home и Browse.

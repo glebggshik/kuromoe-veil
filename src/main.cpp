@@ -199,8 +199,12 @@ int main(int argc, char *argv[]) {
     // root-компонента, загружаемого через loadFromModule. qmlRegisterSingle-
     // tonInstance регистрирует готовый экземпляр синхронно, до первой
     // попытки engine его использовать — гонки нет в принципе.
-    static RetroTheme retroThemeInstance;
+    RetroTheme retroThemeInstance;
     qmlRegisterSingletonInstance<RetroTheme>("AnimeClient", 1, 0, "RetroTheme", &retroThemeInstance);
+
+    // Theme/RetroTheme — автоматические локалы, не static: умирают до
+    // QGuiApplication (обратный порядок конструирования), а не после неё.
+    Theme themeInstance;
 
     QQmlApplicationEngine engine;
     auto *posterProvider = new PosterImageProvider();
@@ -222,7 +226,6 @@ int main(int argc, char *argv[]) {
     // Theme — обычный QObject как контекстное свойство (не QML-синглтон),
     // ровно как в Python-версии (qt_bridge/theme.py) — старые компоненты
     // (Card.qml и т.п.) ссылаются на "Theme.xxx" как на глобальный объект.
-    static Theme themeInstance;
     engine.rootContext()->setContextProperty("Theme", &themeInstance);
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
@@ -291,26 +294,12 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
         qInfo("Anime Client shutting down");
-        // std::quick_exit ниже пропускает статические деструкторы, поэтому всё,
-        // что синглтоны делали бы в деструкторах, выполняем явно здесь:
-        // 1) прогресс просмотра (иначе теряются последние ≤5 сек тайминга);
         HistoryManager::instance()->flush();
-        // 2) PosterThumbnail декодирует в QtConcurrent — дождёмся, чтобы не
-        //    сыпались QWaitCondition / QThreadStorage в лог при выходе (Debug);
         QThreadPool::globalInstance()->waitForDone(3000);
-        // 3) http-потоки QNetworkAccessManager (join в деструкторе QNAM).
         NetworkManager::instance()->shutdown();
     });
 
     const int code = app.exec();
     qInfo("Anime Client exit code: %d", code);
-
-    // std::quick_exit: обычный return из main крашится (0xC0000005) в
-    // статических деструкторах синглтонов (PosterCache/HistoryManager/… живут
-    // как function-local statics и умирают ПОСЛЕ QGuiApplication — проверено
-    // повторно 2026-07: даже с NetworkManager::shutdown() segfault остаётся).
-    // Всё критичное (flush прогресса, join потоков) выполняется явно в
-    // aboutToQuit выше; оставшиеся QWaitCondition/QThreadStorage-строки в логе
-    // после "exit code" — косметика выгрузки Qt DLL, не влияет на данные.
-    std::quick_exit(code < 0 ? 1 : code);
+    return code < 0 ? 1 : code;
 }

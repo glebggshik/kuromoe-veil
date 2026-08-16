@@ -1,5 +1,6 @@
 #include "NetworkManager.h"
 
+#include <QCoreApplication>
 #include <QNetworkCookieJar>
 #include <QNetworkDiskCache>
 #include <QNetworkRequest>
@@ -58,8 +59,8 @@ void installDiskCache(QNetworkAccessManager &nam) {
 }
 
 NetworkManager *NetworkManager::instance() {
-    static NetworkManager inst;
-    return &inst;
+    static NetworkManager *inst = new NetworkManager(QCoreApplication::instance());
+    return inst;
 }
 
 NetworkManager::NetworkManager(QObject *parent) : QObject(parent) {

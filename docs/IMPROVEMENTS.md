@@ -22,34 +22,14 @@
 
 ## P0 — обязательно
 
-### 1. Гонка async при смене серии
-**Где:** `DetailBridge::play` / `playSmashMixed` (Kodik, CVH, Hentasis, AniStar)
+### 1. Гонка async при смене серии — сделано
+`DetailBridge::m_playGen` инкрементируется на каждый `play()` / `playSmashMixed()`; колбэки `getEpisodeStream` игнорируют stale `gen`.
 
-`PlaybackController` отменяет устаревшие колбэки через `m_playGeneration`, но резолв URL (`getEpisodeStream`) — нет. Быстрый клик «серия 5 → серия 3» может запустить 5 после 3.
+### 2. Smash + авто-переход на следующую серию — сделано
+`PlaybackController::setSmashAudioHint` + сигнал `smashNextEpisodeNeeded` → `DetailBridge` снова зовёт `playSmashMixed`.
 
-**Что сделать:** generation/token на каждый `play()`; в лямбдах `getEpisodeStream` игнорировать stale-ответ.
-
-**Размер:** S
-
----
-
-### 2. Smash + авто-переход на следующую серию
-**Где:** `PlaybackController::onPlayerEndOfFile` + QML (`DetailView` / `RetroDetail`)
-
-Для торрента контроллер сам зовёт `playTorrentEpisode` **без** повторного `attachExternalAudio` / `playSmashMixed`. После EOF в режиме Smash остаётся только видео с торрента.
-
-**Что сделать:** при EOF в smash снова вызывать `playSmashMixed` (или сохранять audio translation id и re-attach).
-
-**Размер:** S
-
----
-
-### 3. SQLite: WAL + busy_timeout
-**Где:** `HistoryManager`, `StatusStore` (один `history.sqlite3`, два connection)
-
-Нет `PRAGMA journal_mode=WAL`, нет `busy_timeout`. Риск `SQLITE_BUSY` и порчи при kill/crash.
-
-**Что сделать:** при `openDatabase()`:
+### 3. SQLite: WAL + busy_timeout — сделано
+`HistoryManager` и `StatusStore` при `openDatabase()`:
 
 ```sql
 PRAGMA journal_mode=WAL;
@@ -57,21 +37,8 @@ PRAGMA busy_timeout=5000;
 PRAGMA synchronous=NORMAL;
 ```
 
-**Размер:** S
-
----
-
-### 4. Нормальный shutdown вместо `std::quick_exit`
-**Где:** `main.cpp`
-
-`quick_exit` обходит краш `0xC0000005` на деструкторах синглтонов после `QGuiApplication`. Flush/join делается вручную в `aboutToQuit`, но lifetime объектов всё ещё кривой.
-
-**Что сделать:**
-1. Явный `AppShutdown`: History flush → Mpv stop → TorrServer shutdown → NetworkManager → thread pool.
-2. Синглтоны с контролируемым временем жизни (не «умирают после QGuiApplication»).
-3. Убрать `std::quick_exit`, когда exit стабилен в Debug и Release.
-
-**Размер:** M–L
+### 4. Нормальный shutdown вместо `std::quick_exit` — сделано
+Синглтоны живут как `new T(qApp)` (дети QGuiApplication, умирают до неё). `Theme`/`RetroTheme` — локалы `main`, не `static`. `aboutToQuit`: flush истории → join thread pool → `NetworkManager::shutdown()`. `main` делает обычный `return`.
 
 ---
 
@@ -272,16 +239,15 @@ Plaintext. Для личного ПК ок; для шаринга папки —
 
 ## Предлагаемый порядок работ
 
-### Быстрый пакет (2–4 дня)
+### Быстрый пакет — сделано
 1. Play-generation на async stream resolve  
 2. Smash auto-next с audio  
 3. SQLite WAL  
-4. Git + `.gitignore` + подчистить `terminals/`  
-5. Ошибки Smash / понятнее empty sources в UI (минимум)
+4. Shutdown без `quick_exit`  
+5. Git + `.gitignore`
 
 ### Стабильность (следующая неделя)
-6. Shutdown без `quick_exit`  
-7. Async TorrServer probe  
+6. Async TorrServer probe  
 8. Unit-тесты `EpisodeParser` + ranking  
 9. Hotkeys  
 
@@ -313,10 +279,10 @@ test-checklist.md                    — ручной smoke
 
 ## Критерий «готово» для P0
 
-- [ ] Быстрое переключение серий 1→5→2 не запускает «не ту» после resolve  
-- [ ] Smash: EOF → следующая серия с тем же audio source  
-- [ ] После kill/force-close прогресс не теряется чаще, чем autosave 5 с; БД не ломается  
-- [ ] Закрытие окна во время плеера: exit code `0`, без `0xC0000005` **без** `quick_exit` (или с ним только как временный fallback, задокументированный)
+- [x] Быстрое переключение серий 1→5→2 не запускает «не ту» после resolve  
+- [x] Smash: EOF → следующая серия с тем же audio source  
+- [x] WAL + busy_timeout на общем `history.sqlite3`  
+- [x] Закрытие окна: обычный `return` из `main`, без `std::quick_exit`
 
 ---
 

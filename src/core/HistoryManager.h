@@ -52,8 +52,7 @@ signals:
     void currentChanged(const QString &titleId, int episode);
 
 public slots:
-    // Публичный: вызывается из aboutToQuit — std::quick_exit пропускает
-    // статические деструкторы, и ~HistoryManager с его flush() не выполняется.
+    // Публичный: вызывается из aboutToQuit до разборки QGuiApplication.
     void flush();
 
 private:

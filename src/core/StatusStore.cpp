@@ -1,5 +1,6 @@
 #include "StatusStore.h"
 
+#include <QCoreApplication>
 #include <QSqlError>
 #include <QSqlQuery>
 
@@ -10,8 +11,8 @@ StatusStore::StatusStore(QObject *parent) : QObject(parent) {
 }
 
 StatusStore *StatusStore::instance() {
-    static StatusStore inst;
-    return &inst;
+    static StatusStore *inst = new StatusStore(QCoreApplication::instance());
+    return inst;
 }
 
 void StatusStore::openDatabase() {

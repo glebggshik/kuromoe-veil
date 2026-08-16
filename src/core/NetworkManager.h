@@ -33,12 +33,9 @@ public:
     QNetworkReply *getLocal(const QNetworkRequest &request);
     QNetworkReply *postLocal(const QNetworkRequest &request, const QByteArray &body);
 
-    // Останавливает http-потоки QNAM (их join происходит в деструкторе QNAM).
-    // Вызывается из aboutToQuit: singleton — функционально-локальный статик,
-    // а std::quick_exit в Debug пропускает статические деструкторы, из-за чего
-    // потоки жили до ExitProcess и сыпали QWaitCondition/QThreadStorage-
-    // предупреждения при выгрузке Qt DLL. После shutdown() менеджеры лениво
-    // пересоздаются, если кто-то сделает поздний запрос.
+    // Останавливает http-потоки QNAM (join в деструкторе QNAM).
+    // aboutToQuit вызывает это до разборки QGuiApplication; после shutdown()
+    // менеджеры лениво пересоздаются, если кто-то сделает поздний запрос.
     void shutdown();
 
 private slots:
