@@ -49,7 +49,14 @@ if not exist "%EXE_DIR%\anime_client_cpp.exe" (
 )
 
 echo === windeployqt (Qt-плагины и DLL рядом с exe) ===
-windeployqt --release --no-translations "%EXE_DIR%\anime_client_cpp.exe"
+rem windeployqt живёт в vcpkg-установке Qt, а не в PATH — ищем сами.
+set "WINDEPLOYQT=%VCPKG_ROOT%\installed\x64-windows\tools\Qt6\bin\windeployqt.exe"
+if not exist "%WINDEPLOYQT%" (
+    echo [ERROR] windeployqt не найден: %WINDEPLOYQT%
+    echo         Скорее всего vcpkg не поставил Qt6-инструменты — проверь vcpkg install.
+    exit /b 1
+)
+"%WINDEPLOYQT%" --release --no-translations "%EXE_DIR%\anime_client_cpp.exe"
 if errorlevel 1 exit /b 1
 
 rem libmpv-2.dll POST_BUILD уже кладёт рядом с exe, но страхуемся:
