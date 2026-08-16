@@ -1,5 +1,6 @@
 #include "AniListClient.h"
 
+#include <functional>
 #include <memory>
 
 #include <QJsonArray>
@@ -215,51 +216,67 @@ void AniListClient::fetchCountriesForMalIds(const QList<int> &malIds, CountriesC
         "  }"
         "}");
 
-    QJsonArray idsArray;
-    for (int id : malIds)
-        idsArray.append(id);
+    // AniList отвечает максимум perPage=50 записей на запрос — если слать
+    // ВСЕ malId календаря (~100+) одним запросом, страны остальных тайтлов
+    // теряются (молча откатываются на эвристику по студии), а гигантский
+    // idMal_in — подозреваемый в MSVC Debug abort (см. ShikimoriClient
+    // getCalendar, #ifndef NDEBUG). Дробим на чанки по 50 и собираем.
+    constexpr int kChunkSize = 50;
+    auto state = std::make_shared<QMap<int, QString>>();
+    auto fetchChunk = std::make_shared<std::function<void(int)>>();
+    *fetchChunk = [this, malIds, callback, state, fetchChunk](int offset) {
+        if (offset >= malIds.size()) {
+            callback(*state);
+            return;
+        }
+        const QList<int> chunk = malIds.mid(offset, kChunkSize);
+        QJsonArray idsArray;
+        for (int id : chunk)
+            idsArray.append(id);
 
-    QJsonObject body;
-    body[QStringLiteral("query")] = query;
-    QJsonObject vars;
-    vars[QStringLiteral("ids")] = idsArray;
-    body[QStringLiteral("variables")] = vars;
+        QJsonObject body;
+        body[QStringLiteral("query")] = query;
+        QJsonObject vars;
+        vars[QStringLiteral("ids")] = idsArray;
+        body[QStringLiteral("variables")] = vars;
 
-    QNetworkRequest req{QUrl(kGraphqlUrl)};
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArray("application/json"));
-    req.setRawHeader("Accept", "application/json");
-    req.setRawHeader(
-        "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0");
+        QNetworkRequest req{QUrl(kGraphqlUrl)};
+        req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArray("application/json"));
+        req.setRawHeader("Accept", "application/json");
+        req.setRawHeader(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0");
 
-    // AniList не геоблокируется — без прокси (как Shikimori/JacRed).
-    QNetworkReply *reply = NetworkManager::instance()->postLocal(req, QJsonDocument(body).toJson());
-    QObject::connect(reply, &QNetworkReply::finished, this, [reply, callback]() {
-        QMap<int, QString> result;
-        const QByteArray data = reply->readAll();
-        const QNetworkReply::NetworkError netErr = reply->error();
-        reply->deleteLater();
+        // AniList не геоблокируется — без прокси (как Shikimori/JacRed).
+        QNetworkReply *reply = NetworkManager::instance()->postLocal(req, QJsonDocument(body).toJson());
+        QObject::connect(reply, &QNetworkReply::finished, this,
+                         [reply, state, offset, fetchChunk]() {
+            const QByteArray data = reply->readAll();
+            const QNetworkReply::NetworkError netErr = reply->error();
+            reply->deleteLater();
 
-        if (netErr == QNetworkReply::NoError) {
-            const QJsonObject root = QJsonDocument::fromJson(data).object();
-            if (!root.contains(QStringLiteral("errors"))) {
-                const QJsonArray mediaList = root.value(QStringLiteral("data"))
-                    .toObject()
-                    .value(QStringLiteral("Page"))
-                    .toObject()
-                    .value(QStringLiteral("media"))
-                    .toArray();
-                for (const QJsonValue &mv : mediaList) {
-                    const QJsonObject m = mv.toObject();
-                    const int idMal = m.value(QStringLiteral("idMal")).toInt();
-                    const QString country = m.value(QStringLiteral("countryOfOrigin")).toString();
-                    if (idMal > 0 && !country.isEmpty())
-                        result.insert(idMal, country);
+            if (netErr == QNetworkReply::NoError) {
+                const QJsonObject root = QJsonDocument::fromJson(data).object();
+                if (!root.contains(QStringLiteral("errors"))) {
+                    const QJsonArray mediaList = root.value(QStringLiteral("data"))
+                        .toObject()
+                        .value(QStringLiteral("Page"))
+                        .toObject()
+                        .value(QStringLiteral("media"))
+                        .toArray();
+                    for (const QJsonValue &mv : mediaList) {
+                        const QJsonObject m = mv.toObject();
+                        const int idMal = m.value(QStringLiteral("idMal")).toInt();
+                        const QString country = m.value(QStringLiteral("countryOfOrigin")).toString();
+                        if (idMal > 0 && !country.isEmpty())
+                            state->insert(idMal, country);
+                    }
                 }
             }
-        }
-        callback(result);
-    });
+            (*fetchChunk)(offset + kChunkSize);
+        });
+    };
+    (*fetchChunk)(0);
 }
 
 void AniListClient::enrichHeroBanners(const QVariantList &items, ItemsCallback callback) {

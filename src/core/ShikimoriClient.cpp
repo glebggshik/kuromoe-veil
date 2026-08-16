@@ -918,13 +918,14 @@ void ShikimoriClient::getCalendar(bool excludeChinese, CalendarCallback callback
         }
         // Сначала REST (расписание сразу), затем GraphQL-постеры без блокировки UI.
         callback(days, QString());
-#ifndef NDEBUG
-        // MSVC Debug: сам вызов enrichCalendarDays() (batch GraphQL-запрос
-        // getByIds по ~100+ id разом) валит abort() в Debug-рантайме — не
-        // только назначение постеров (assignPosters=false тоже падает,
-        // проверено). Оставляем расписание без фильтра "скрывать китайские
-        // аниме" и без постеров/студий в Debug; в Release enrichCalendarDays
-        // отрабатывает нормально и фильтр применяется.
+#if defined(Q_CC_MSVC) && !defined(NDEBUG)
+        // MSVC Debug: batch GraphQL getByIds (~100+ id разом) валил abort() в
+        // Debug-рантайме — не только назначение постеров (assignPosters=false
+        // тоже падало, проверено). На остальных платформах (Linux Debug/MinGW/
+        // clang) и в Release enrichCalendarDays отрабатывает нормально, а после
+        // чанкинга AniList (fetchCountriesForMalIds по 50) стрессовый запрос
+        // ушёл — поэтому скоп ограничен ровно проверенной связкой MSVC+Debug.
+        // Если abort вернётся на MSVC Debug — разбирать именно там.
         Q_UNUSED(excludeChinese);
 #else
         enrichCalendarDays(days, excludeChinese, callback);

@@ -66,17 +66,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 13. Debug ≠ Release (календарь)
-**Где:** `ShikimoriClient` — `#ifndef NDEBUG` отключает `enrichCalendarDays`
-
-В Debug нет постеров/фильтра «скрывать китайские».
-
-**Что сделать:** починить root cause abort в Debug **или** явно писать в UI «урезанный календарь (Debug)». Лучше починить.
-
-**Размер:** M
-
----
-
 ## P2 — инфра и гигиена
 
 ### 14. Git
