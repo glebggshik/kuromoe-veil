@@ -1412,11 +1412,11 @@ Item {
         }
     }
 
-    // === ПЛЕЕР — порт функционала PlayerOverlay.qml: play/pause, перемотка
-    // ±10с, таймлайн с кликом, дорожки звука/субтитров, громкость,
-    // полноэкранный режим, авто-скрытие панели при бездействии мыши и
-    // весь набор клавиатурных/мышиных команд оригинала (см. Shortcut-ы и
-    // MouseArea на видео ниже). Видео всегда заполняет playerHost на 100%.
+    // === ПЛЕЕР: ОДИН компонент (PlayerOverlay) для обеих тем ===
+    // Клики/двойной клик/хоткеи/таймлайн/автоскрытие/cinema — в
+    // qml/components/PlayerOverlay.qml; темы только скинят цвета/иконки и
+    // дают player+playback. Здесь — позиционирование (inline/cinema) и
+    // ретро-фича поверх хрома (audio-sync для смэша).
     Item {
         id: playerHost
         parent: root.cinemaMode ? cinemaLayer : inlinePlayerSlot
@@ -1424,98 +1424,6 @@ Item {
         clip: true
 
         readonly property bool playerActive: player.hasMedia || player.loading || playback.buffering
-
-        // Авто-скрытие панели (как bottomChrome в PlayerOverlay.qml, но без
-        // отдельных "зон" — тут один общий таймер на всю панель+таймлайн).
-        property bool controlsVisible: true
-        property bool uiPinned: false
-
-        function showControls() {
-            playerHost.controlsVisible = true
-            if (!playerHost.uiPinned)
-                hideControlsTimer.restart()
-        }
-
-        Timer {
-            id: hideControlsTimer
-            interval: 2500
-            onTriggered: {
-                if (!playerHost.uiPinned)
-                    playerHost.controlsVisible = false
-            }
-        }
-
-        onPlayerActiveChanged: if (playerActive) playerHost.showControls()
-
-        // === Клавиатура — как в PlayerOverlay.qml обычной темы ===
-        Shortcut {
-            sequence: "Space"
-            enabled: playerHost.playerActive
-            onActivated: {
-                player.paused = !player.paused
-                playerHost.showControls()
-            }
-        }
-        Shortcut {
-            sequence: "F"
-            enabled: playerHost.playerActive
-            onActivated: {
-                root.cinemaMode = !root.cinemaMode
-                playerHost.showControls()
-            }
-        }
-        Shortcut {
-            sequence: "Left"
-            enabled: playerHost.playerActive
-            onActivated: {
-                player.seekRelative(-10)
-                playerHost.showControls()
-            }
-        }
-        Shortcut {
-            sequence: "Right"
-            enabled: playerHost.playerActive
-            onActivated: {
-                player.seekRelative(10)
-                playerHost.showControls()
-            }
-        }
-        Shortcut {
-            sequence: "M"
-            enabled: playerHost.playerActive
-            onActivated: {
-                player.muted = !player.muted
-                playerHost.showControls()
-            }
-        }
-        Shortcut {
-            sequence: "Up"
-            enabled: playerHost.playerActive
-            onActivated: {
-                player.volume = Math.min(100, player.volume + 5)
-                playerHost.showControls()
-            }
-        }
-        Shortcut {
-            sequence: "Down"
-            enabled: playerHost.playerActive
-            onActivated: {
-                player.volume = Math.max(0, player.volume - 5)
-                playerHost.showControls()
-            }
-        }
-
-        function fmtTime(seconds) {
-            if (!seconds || seconds < 0 || isNaN(seconds))
-                return "0:00"
-            const s = Math.floor(seconds)
-            const h = Math.floor(s / 3600)
-            const m = Math.floor((s % 3600) / 60)
-            const sec = s % 60
-            const mm = String(m).padStart(2, "0")
-            const ss = String(sec).padStart(2, "0")
-            return h > 0 ? (h + ":" + mm + ":" + ss) : (m + ":" + ss)
-        }
 
         MpvPlayer {
             id: player
@@ -1525,662 +1433,196 @@ Item {
                 root.cinemaMode = false
                 player.stop()
             }
+        }
 
-            // Мышь на видео — весь набор команд из PlayerOverlay.qml:
-            // ЛКМ — пауза, ПКМ — закрепить панель (не прячется), двойной
-            // клик — полноэкранный режим, колесо — громкость (±5),
-            // Shift+колесо — перемотка (±10с). Движение мыши показывает
-            // панель и сбрасывает таймер авто-скрытия; курсор прячется
-            // вместе с панелью.
-            Timer {
-                id: retroClickTimer
-                // Как в PlayerOverlay.qml (~250 мс mpv/uosc): одиночный клик
-                // подтверждается, только если за это время не пришёл второй.
-                interval: 250
-                onTriggered: player.paused = !player.paused
-            }
-            MouseArea {
-                id: playerMouseArea
-                anchors.fill: parent
-                hoverEnabled: true
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                cursorShape: playerHost.controlsVisible ? Qt.ArrowCursor : Qt.BlankCursor
-                // Для детекции двойного клика по mpv-правилам (время + расстояние).
-                property point lastClickPos: Qt.point(-10000, -10000)
-                property real lastClickTime: 0
-                onPositionChanged: playerHost.showControls()
-                onEntered: playerHost.showControls()
-
-                onClicked: function(mouse) {
-                    if (mouse.button === Qt.LeftButton) {
-                        lastClickPos = Qt.point(mouse.x, mouse.y)
-                        lastClickTime = Date.now()
-                        retroClickTimer.restart()
-                    } else if (mouse.button === Qt.RightButton) {
-                        playerHost.uiPinned = !playerHost.uiPinned
-                        playerHost.showControls()
-                    }
-                }
-                onDoubleClicked: function(mouse) {
-                    if (mouse.button !== Qt.LeftButton)
-                        return
-                    retroClickTimer.stop()
-                    // Qt считает двойным кликом клики в пределах ~400 мс — из-за
-                    // этого быстрые pause/play уходили в fullscreen (а в retro —
-                    // ещё и успевали переключить паузу). Ужесточаем как mpv/uosc:
-                    // двойной клик только если клики быстрые (<=250 мс) и рядом.
-                    var elapsed = Date.now() - lastClickTime
-                    var dist = Math.hypot(mouse.x - lastClickPos.x, mouse.y - lastClickPos.y)
-                    if (elapsed > 250 || dist > 24) {
-                        player.paused = !player.paused
-                        return
-                    }
-                    root.cinemaMode = !root.cinemaMode
-                }
-                onWheel: function(wheel) {
-                    // Вне cinemaMode колесо должно скроллить страницу
-                    // (detailFlick), а не крутить громкость — иначе просто
-                    // невозможно прокрутить карточку колесом, если курсор
-                    // над встроенным плеером.
-                    if (!root.cinemaMode) {
-                        wheel.accepted = false
-                        return
-                    }
-                    playerHost.showControls()
-                    if (wheel.modifiers & Qt.ShiftModifier) {
-                        player.seekRelative(wheel.angleDelta.y > 0 ? 10 : -10)
-                    } else {
-                        player.volume = Math.max(0, Math.min(100, player.volume + (wheel.angleDelta.y > 0 ? 5 : -5)))
-                    }
-                }
+        PlayerOverlay {
+            anchors.fill: parent
+            player: player
+            playback: playback
+            titleText: root.item.title || ""
+            maxEpisode: root.maxEpisode
+            cinemaMode: root.cinemaMode
+            posterSource: root.posterSource
+            fontFamily: RetroTheme.fontFamily
+            fg: RetroTheme.foreground
+            fgMuted: RetroTheme.mutedForeground
+            trackBg: "#40000000"
+            trackFill: RetroTheme.primary
+            shadeTop: "#cc101410"
+            shadeBottom: "#cc101410"
+            showEpisodeList: false
+            showSkipOpening: true
+            wheelPassThroughOutsideCinema: true
+            onRequestCinemaToggle: root.cinemaMode = !root.cinemaMode
+            onRequestEpisode: function(ep) {
+                if (ep < 1 || ep > root.maxEpisode) return
+                root.episode = ep
+                bridge.play(ep, root.effectiveTranslationId())
             }
         }
 
-        // Постер тайтла на время загрузки/смены серии — вместо чёрного экрана.
-        // Статичный (не слайдшоу): виден пока нет видео или идёт loading,
-        // скрывается как только пошли кадры.
-        Image {
-            id: posterLoading
-            anchors.fill: player
-            visible: !player.hasMedia || player.loading
-            source: root.posterSource
-            fillMode: Image.PreserveAspectCrop
-            smooth: true
-            mipmap: true
-            clip: true
-            Rectangle {
-                anchors.fill: parent
-                color: "#55000000"
-            }
-        }
-
-        // Таймлайн — кликабельный, перемотка по позиции клика. Прячется
-        // вместе с controlsBar (см. controlsOverlay ниже), но наведение на
-        // него само по себе тоже держит панель показанной.
-        Rectangle {
-            id: timeline
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: controlsBar.top
-            height: 8
-            opacity: playerHost.controlsVisible ? 1 : 0
-            visible: opacity > 0.01
-            Behavior on opacity { NumberAnimation { duration: 200 } }
-            color: Qt.rgba(1, 1, 1, 0.12)
-
-            HoverHandler { onHoveredChanged: if (hovered) playerHost.showControls() }
-
-            Rectangle {
-                height: parent.height
-                width: player.duration > 0 ? parent.width * (player.position / player.duration) : 0
-                color: RetroTheme.primary
-            }
-
-            // Hover-позиция для превью на таймлайне (hoverRatio) + клик-перемотка.
-            MouseArea {
-                id: timelineHover
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                property real hoverRatio: -1
-                onPositionChanged: function(mouse) {
-                    if (player.duration > 0)
-                        timelineHover.hoverRatio = Math.max(0, Math.min(1, mouse.x / timeline.width))
-                    playerHost.showControls()
-                }
-                onExited: timelineHover.hoverRatio = -1
-                onClicked: function(mouse) {
-                    if (player.duration > 0)
-                        player.seek((mouse.x / timeline.width) * player.duration)
-                }
-            }
-        }
-
-        // === Превью на таймлайне (#20): кадр с тихого mpv_handle, debounce
-        // 100 мс, основной плеер не seek-ается. Нет кадра — только время,
-        // без чёрной плашки.
+        // === Ретро-фича поверх общего хрома: audio-sync (сдвиг звука/видео
+        // в смэше — разные релизы, разная длина опенинга/интро). ===
         Item {
-            id: retroThumbPopup
-            visible: timelineHover.hoverRatio >= 0 && player.duration > 0
-            readonly property bool hasFrame: thumbProbe.frameVersion > 0
-            width: retroThumbPopup.hasFrame ? 176 : (retroThumbTimePill.width + 12)
-            height: retroThumbPopup.hasFrame ? 99 : (retroThumbTimePill.height + 4)
-            x: Math.max(0, Math.min(timeline.width - width,
-                                    timelineHover.hoverRatio * timeline.width - width / 2))
-            y: timeline.y - height - 6
-            z: 20
-            Rectangle {
-                anchors.fill: parent
-                color: "#d8000000"
-                radius: 6
-                border.width: 1
-                border.color: RetroTheme.border
-                visible: retroThumbPopup.hasFrame
-            }
-            Image {
-                anchors.fill: parent
-                anchors.margins: 3
-                visible: retroThumbPopup.hasFrame
-                source: "image://thumbs/frame?v=" + thumbProbe.frameVersion
-                cache: false
-                fillMode: Image.PreserveAspectFit
-            }
-            Rectangle {
-                id: retroThumbTimePill
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: retroThumbTime.width + 12
-                height: retroThumbTime.height + 4
-                color: "#cc000000"
-                Text {
-                    id: retroThumbTime
-                    anchors.centerIn: parent
-                    text: playerHost.fmtTime(timelineHover.hoverRatio * player.duration)
-                    font.family: RetroTheme.fontFamily
-                    font.pixelSize: 10
-                    color: "white"
-                }
-            }
-            Timer {
-                id: retroThumbDebounce
-                interval: 100
-                onTriggered: {
-                    if (playback && timelineHover.hoverRatio >= 0 && player.duration > 0)
-                        playback.requestThumbnail(timelineHover.hoverRatio * player.duration)
-                }
-            }
-            Connections {
-                target: timelineHover
-                function onHoverRatioChanged() { retroThumbDebounce.restart() }
-            }
-        }
-
-        Rectangle {
-            id: controlsBar
-            anchors.left: parent.left
+            id: retroAudioSync
+            anchors.top: parent.top
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 52
-            opacity: playerHost.controlsVisible ? 1 : 0
-            visible: opacity > 0.01
-            Behavior on opacity { NumberAnimation { duration: 200 } }
-            color: RetroTheme.card
-            border.width: 1
-            border.color: RetroTheme.border
+            anchors.margins: 10
+            z: 40
 
-            HoverHandler { onHoveredChanged: if (hovered) playerHost.showControls() }
-
-                component IconBtn: Item {
-                    id: iconBtn
-                    property string icon: ""
-                    // enabled уже есть у Item — переиспользуем встроенное
-                    // свойство вместо своего (иначе Qt ругается, что оно
-                    // перекрывает базовое).
-                    signal clicked()
-                    width: 34; height: 34
-                    opacity: iconBtn.enabled ? (mouse.containsMouse ? 1 : 0.85) : 0.3
-                    scale: mouse.containsMouse && iconBtn.enabled ? 1.06 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 90 } }
-
-                    Image {
-                        anchors.fill: parent
-                        source: iconBtn.icon
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                    }
-                    MouseArea {
-                        id: mouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        enabled: iconBtn.enabled
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: iconBtn.clicked()
-                    }
-                }
-
-                Row {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 6
-
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/rewind-10.svg")
-                        onClicked: player.seekRelative(-10)
-                    }
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/" + (player.paused ? "play.svg" : "pause.svg"))
-                        onClicked: player.paused = !player.paused
-                    }
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/forward-10.svg")
-                        onClicked: player.seekRelative(10)
-                    }
-                    // Пропуск опенинга — 1:27 вперёд.
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/skip-opening.svg")
-                        onClicked: player.seekRelative(87)
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        leftPadding: 8
-                        text: playerHost.fmtTime(player.position) + " / " + playerHost.fmtTime(player.duration)
-                        font.family: RetroTheme.fontFamily
-                        font.pixelSize: 10
-                        color: RetroTheme.mutedForeground
-                    }
-                }
-
-                Row {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 10
-
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/episode-prev.svg")
-                        enabled: root.episode > 1
-                        onClicked: root.playEpisode(root.episode - 1)
-                    }
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/episode-next.svg")
-                        enabled: root.episode < root.maxEpisode
-                        onClicked: root.playEpisode(root.episode + 1)
-                    }
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/audio.svg")
-                        enabled: player.audioTracks.length > 1
-                        onClicked: trackPicker.mode = (trackPicker.mode === "audio" ? "" : "audio")
-                    }
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/subtitles.svg")
-                        enabled: player.subtitleTracks.length > 0
-                        onClicked: trackPicker.mode = (trackPicker.mode === "subtitle" ? "" : "subtitle")
-                    }
-                    IconBtn {
-                        id: audioSyncBtn
-                        icon: Qt.resolvedUrl("assets/player-retro/audio-sync.svg")
-                        // Ручная синхронизация звука с видео нужна в первую
-                        // очередь в смэше (звук и видео — из разных источников,
-                        // у них разной длины опенинги/интро), но полезна и
-                        // в целом при рассинхроне любого потока.
-                        onClicked: audioSyncPanel.visible = !audioSyncPanel.visible
-                    }
-
-                    Item {
-                        id: volumeBox
-                        width: 90; height: 34
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Row {
-                            anchors.fill: parent
-                            spacing: 6
-                            Image {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 30; height: 30
-                                source: Qt.resolvedUrl("assets/player-retro/volume.svg")
-                                fillMode: Image.PreserveAspectFit
-                            }
-                            Rectangle {
-                                id: volTrack
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 44; height: 6
-                                color: Qt.rgba(1, 1, 1, 0.12)
-                                Rectangle {
-                                    height: parent.height
-                                    width: parent.width * (player.volume / 100)
-                                    color: RetroTheme.primary
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    anchors.margins: -6
-                                    cursorShape: Qt.PointingHandCursor
-                                    onPressed: function(mouse) { player.volume = Math.max(0, Math.min(100, Math.round((mouse.x / volTrack.width) * 100))) }
-                                    onPositionChanged: function(mouse) {
-                                        if (pressed)
-                                            player.volume = Math.max(0, Math.min(100, Math.round((mouse.x / volTrack.width) * 100)))
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        id: speedBox
-                        width: 44; height: 26
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: RetroTheme.background
-                        border.width: 1
-                        border.color: speedInput.activeFocus ? RetroTheme.primary : RetroTheme.border
-
-                        TextInput {
-                            id: speedInput
-                            anchors.fill: parent
-                            horizontalAlignment: TextInput.AlignHCenter
-                            verticalAlignment: TextInput.AlignVCenter
-                            text: player.speed.toFixed(2) + "x"
-                            validator: RegularExpressionValidator { regularExpression: /[0-9]{0,1}[.,]?[0-9]{0,2}x?/ }
-                            font.family: RetroTheme.fontFamily
-                            font.pixelSize: 11
-                            color: RetroTheme.primary
-                            selectByMouse: true
-                            onEditingFinished: {
-                                const parsed = parseFloat(text.replace(",", ".").replace("x", ""))
-                                if (!isNaN(parsed))
-                                    player.speed = Math.max(0.25, Math.min(4.0, parsed))
-                                text = player.speed.toFixed(2) + "x"
-                            }
-                            Connections {
-                                target: player
-                                function onSpeedChanged() { speedInput.text = player.speed.toFixed(2) + "x" }
-                            }
-                        }
-                    }
-
-                    IconBtn {
-                        icon: Qt.resolvedUrl("assets/player-retro/" + (root.cinemaMode ? "fullscreen-exit.svg" : "fullscreen.svg"))
-                        onClicked: root.cinemaMode = !root.cinemaMode
-                    }
-                }
-
-                // Ручной сдвиг звука относительно видео — нужен в смэше, где
-                // видео (торрент) и звук (Kodik/CVH) из разных релизов и могут
-                // не совпадать по длине опенинга/интро на несколько секунд.
-                Rectangle {
-                    id: audioSyncPanel
-                    visible: false
-                    anchors.right: parent.right
-                    anchors.rightMargin: 10
-                    anchors.bottom: parent.top
-                    anchors.bottomMargin: 8
-                    width: 230
-                    height: syncColumn.implicitHeight + 20
-                    color: RetroTheme.card
-                    border.width: 1
-                    border.color: RetroTheme.primary
-                    z: 50
-
-                    Column {
-                        id: syncColumn
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
-
-                        Text {
-                            text: "// audio sync offset"
-                            font.family: RetroTheme.fontFamily
-                            font.pixelSize: 9
-                            color: RetroTheme.mutedForeground
-                        }
-                        Row {
-                            width: parent.width
-                            spacing: 8
-
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 64; height: 26
-                                color: RetroTheme.background
-                                border.width: 1
-                                border.color: delayInput.activeFocus ? RetroTheme.primary : RetroTheme.border
-                                // Значение вбивается напрямую (в секундах, "-6.6" и
-                                // т.п.) — плюс/минус кнопки по 0.1с остаются рядом
-                                // для мелкой подстройки, вбивать десятки кликов
-                                // ими для большого сдвига не нужно.
-                                TextInput {
-                                    id: delayInput
-                                    anchors.fill: parent
-                                    horizontalAlignment: TextInput.AlignHCenter
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    text: (player.audioDelay >= 0 ? "+" : "") + player.audioDelay.toFixed(1) + "s"
-                                    validator: RegularExpressionValidator { regularExpression: /-?\d*\.?\d*s?/ }
-                                    font.family: RetroTheme.fontFamily
-                                    font.pixelSize: 13
-                                    color: RetroTheme.primary
-                                    selectByMouse: true
-                                    onEditingFinished: {
-                                        var v = parseFloat(text.replace("s", "").replace(",", "."))
-                                        player.audioDelay = isNaN(v) ? 0 : Math.round(v * 10) / 10
-                                    }
-                                }
-                            }
-                            Rectangle {
-                                width: 30; height: 26
-                                color: minusMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
-                                border.width: 1
-                                border.color: RetroTheme.border
-                                Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 16; color: RetroTheme.foreground }
-                                MouseArea {
-                                    id: minusMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: player.audioDelay = Math.round((player.audioDelay - 0.1) * 10) / 10
-                                }
-                            }
-                            Rectangle {
-                                width: 30; height: 26
-                                color: plusMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
-                                border.width: 1
-                                border.color: RetroTheme.border
-                                Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 16; color: RetroTheme.foreground }
-                                MouseArea {
-                                    id: plusMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: player.audioDelay = Math.round((player.audioDelay + 0.1) * 10) / 10
-                                }
-                            }
-                            Rectangle {
-                                width: 60; height: 26
-                                color: resetMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
-                                border.width: 1
-                                border.color: RetroTheme.border
-                                Text { anchors.centerIn: parent; text: "RESET"; font.family: RetroTheme.fontFamily; font.pixelSize: 8; color: RetroTheme.mutedForeground }
-                                MouseArea {
-                                    id: resetMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: player.audioDelay = 0
-                                }
-                            }
-                        }
-
-                        Row {
-                            width: parent.width
-                            spacing: 8
-
-                            Rectangle {
-                                width: parent.width
-                                height: 26
-                                color: saveMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
-                                border.width: 1
-                                border.color: RetroTheme.primary
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: saveConfirmTimer.running ? "SAVED ✓" : "SAVE PRESET"
-                                    font.family: RetroTheme.fontFamily
-                                    font.pixelSize: 9
-                                    color: RetroTheme.primary
-                                }
-                                MouseArea {
-                                    id: saveMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (root.item && root.item.id) {
-                                            appConfig.setAudioSyncOffset(root.item.id, player.audioDelay)
-                                            saveConfirmTimer.restart()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Timer { id: saveConfirmTimer; interval: 1200 }
-                    }
-                }
-            }
-        }
-
-        // Выбор озвучки/субтитров — центрированное окно со списком, а не
-        // циклический перебор кликами (в некоторых раздачах по 15-20 дорожек,
-        // долистывать до нужной по одной было болью).
-        Rectangle {
-            id: trackPicker
-            property string mode: ""   // "audio" | "subtitle" | ""
-            readonly property var tracks: mode === "audio" ? player.audioTracks
-                : (mode === "subtitle" ? player.subtitleTracks : [])
-            visible: mode !== ""
-            anchors.centerIn: parent
-            z: 60
-            width: Math.min(parent.width * 0.7, 420)
-            height: Math.min(trackPickerColumn.implicitHeight + 24, parent.height * 0.75)
-            color: RetroTheme.card
-            border.width: 1
-            border.color: RetroTheme.primary
-            clip: true
-
-            MouseArea { anchors.fill: parent } // не закрывать по клику мимо списка/кнопок
-
-            Column {
-                id: trackPickerColumn
-                width: parent.width
-                padding: 16
-                spacing: 10
-
+            Rectangle {
+                id: audioSyncToggle
+                width: 46; height: 26
+                color: audioSyncPanel.visible ? RetroTheme.card : "transparent"
+                border.width: 1
+                border.color: audioSyncPanel.visible ? RetroTheme.primary : RetroTheme.border
                 Text {
-                    text: trackPicker.mode === "audio" ? "// выбери озвучку" : "// выбери субтитры"
+                    anchors.centerIn: parent
+                    text: "ASYN"
                     font.family: RetroTheme.fontFamily
-                    font.pixelSize: 12
+                    font.pixelSize: 9
                     color: RetroTheme.primary
                 }
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: audioSyncPanel.visible = !audioSyncPanel.visible
+                }
+            }
 
-                Flickable {
-                    width: parent.width - 32
-                    height: Math.min(trackListCol.implicitHeight, trackPicker.height - 100)
-                    contentWidth: width
-                    contentHeight: trackListCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
+            Rectangle {
+                id: audioSyncPanel
+                visible: false
+                anchors.top: audioSyncToggle.bottom
+                anchors.right: parent.right
+                anchors.topMargin: 6
+                width: 230
+                height: syncColumn.implicitHeight + 20
+                color: RetroTheme.card
+                border.width: 1
+                border.color: RetroTheme.primary
 
-                    Column {
-                        id: trackListCol
+                Column {
+                    id: syncColumn
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
+
+                    Text {
+                        text: "// audio sync offset"
+                        font.family: RetroTheme.fontFamily
+                        font.pixelSize: 9
+                        color: RetroTheme.mutedForeground
+                    }
+                    Row {
                         width: parent.width
-                        spacing: 4
+                        spacing: 8
 
-                        // "Выкл." — только для субтитров, аудио выключить нельзя
                         Rectangle {
-                            visible: trackPicker.mode === "subtitle"
-                            width: trackListCol.width
-                            height: 34
-                            color: offHover.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : RetroTheme.background
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 64; height: 26
+                            color: RetroTheme.background
                             border.width: 1
-                            border.color: player.subtitleTracks.findIndex(function(t) { return t.selected }) === -1
-                                ? RetroTheme.primary : RetroTheme.border
-                            Text {
-                                anchors.left: parent.left
-                                anchors.leftMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "Выкл."
+                            border.color: delayInput.activeFocus ? RetroTheme.primary : RetroTheme.border
+                            // Значение вбивается напрямую (в секундах, "-6.6" и
+                            // т.п.) — плюс/минус кнопки по 0.1с остаются рядом
+                            // для мелкой подстройки.
+                            TextInput {
+                                id: delayInput
+                                anchors.fill: parent
+                                horizontalAlignment: TextInput.AlignHCenter
+                                verticalAlignment: TextInput.AlignVCenter
+                                text: (player.audioDelay >= 0 ? "+" : "") + player.audioDelay.toFixed(1) + "s"
+                                validator: RegularExpressionValidator { regularExpression: /-?\d*\.?\d*s?/ }
                                 font.family: RetroTheme.fontFamily
-                                font.pixelSize: 11
-                                color: RetroTheme.foreground
+                                font.pixelSize: 13
+                                color: RetroTheme.primary
+                                selectByMouse: true
+                                onEditingFinished: {
+                                    var v = parseFloat(text.replace("s", "").replace(",", "."))
+                                    player.audioDelay = isNaN(v) ? 0 : Math.round(v * 10) / 10
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: 30; height: 26
+                            color: minusMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
+                            border.width: 1
+                            border.color: RetroTheme.border
+                            Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 16; color: RetroTheme.foreground }
+                            MouseArea {
+                                id: minusMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: player.audioDelay = Math.round((player.audioDelay - 0.1) * 10) / 10
+                            }
+                        }
+                        Rectangle {
+                            width: 30; height: 26
+                            color: plusMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
+                            border.width: 1
+                            border.color: RetroTheme.border
+                            Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 16; color: RetroTheme.foreground }
+                            MouseArea {
+                                id: plusMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: player.audioDelay = Math.round((player.audioDelay + 0.1) * 10) / 10
+                            }
+                        }
+                        Rectangle {
+                            width: 60; height: 26
+                            color: resetMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
+                            border.width: 1
+                            border.color: RetroTheme.border
+                            Text { anchors.centerIn: parent; text: "RESET"; font.family: RetroTheme.fontFamily; font.pixelSize: 8; color: RetroTheme.mutedForeground }
+                            MouseArea {
+                                id: resetMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: player.audioDelay = 0
+                            }
+                        }
+                    }
+
+                    Row {
+                        width: parent.width
+                        spacing: 8
+
+                        Rectangle {
+                            width: parent.width
+                            height: 26
+                            color: saveMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
+                            border.width: 1
+                            border.color: RetroTheme.primary
+                            Text {
+                                anchors.centerIn: parent
+                                text: saveConfirmTimer.running ? "SAVED ✓" : "SAVE PRESET"
+                                font.family: RetroTheme.fontFamily
+                                font.pixelSize: 9
+                                color: RetroTheme.primary
                             }
                             MouseArea {
-                                id: offHover
+                                id: saveMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    player.setSubtitleTrack(-1)
-                                    trackPicker.mode = ""
-                                }
-                            }
-                        }
-
-                        Repeater {
-                            model: trackPicker.tracks
-                            delegate: Rectangle {
-                                width: trackListCol.width
-                                height: 34
-                                color: trackHover.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : RetroTheme.background
-                                border.width: 1
-                                border.color: modelData.selected ? RetroTheme.primary : RetroTheme.border
-                                Text {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.title || ("Дорожка " + modelData.id)
-                                    font.family: RetroTheme.fontFamily
-                                    font.pixelSize: 11
-                                    color: RetroTheme.foreground
-                                    elide: Text.ElideRight
-                                }
-                                MouseArea {
-                                    id: trackHover
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (trackPicker.mode === "audio")
-                                            player.setAudioTrack(modelData.id)
-                                        else
-                                            player.setSubtitleTrack(modelData.id)
-                                        trackPicker.mode = ""
+                                    if (root.item && root.item.id) {
+                                        appConfig.setAudioSyncOffset(root.item.id, player.audioDelay)
+                                        saveConfirmTimer.restart()
                                     }
                                 }
                             }
                         }
                     }
-                }
-
-                Rectangle {
-                    width: trackPickerCloseText.width + 24
-                    height: 30
-                    color: trackPickerCloseMouse.containsMouse ? Qt.rgba(0.220, 0.973, 0.573, 0.12) : "transparent"
-                    border.width: 1
-                    border.color: RetroTheme.border
-                    Text {
-                        id: trackPickerCloseText
-                        anchors.centerIn: parent
-                        text: "ЗАКРЫТЬ"
-                        font.family: RetroTheme.fontFamily
-                        font.pixelSize: 10
-                        color: RetroTheme.foreground
-                    }
-                    MouseArea {
-                        id: trackPickerCloseMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: trackPicker.mode = ""
-                    }
+                    Timer { id: saveConfirmTimer; interval: 1200 }
                 }
             }
         }
+    }
     }

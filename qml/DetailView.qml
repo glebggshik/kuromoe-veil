@@ -1128,23 +1128,6 @@ Item {
             }
         }
 
-        // Постер тайтла на время загрузки/смены серии — вместо чёрного экрана.
-        // Статичный (не слайдшоу), скрывается как только пошли кадры.
-        Image {
-            id: posterLoading
-            anchors.fill: player
-            visible: !player.hasMedia || player.loading
-            source: root.posterSource
-            fillMode: Image.PreserveAspectCrop
-            smooth: true
-            mipmap: true
-            clip: true
-            Rectangle {
-                anchors.fill: parent
-                color: "#55000000"
-            }
-        }
-
         PlayerOverlay {
             anchors.fill: parent
             player: player
@@ -1152,6 +1135,7 @@ Item {
             titleText: root.item.title || ""
             maxEpisode: root.currentMaxEpisode
             cinemaMode: root.cinemaMode
+            posterSource: root.posterSource
             onRequestCinemaToggle: root.cinemaMode = !root.cinemaMode
             onRequestEpisode: function(ep) {
                 if (ep < 1 || ep > root.currentMaxEpisode) return

@@ -10,6 +10,16 @@ Item {
     property string titleText: ""
     property int maxEpisode: 0
 
+    // Тема-параметры: обе темы (classic/retro) используют ОДИН хром и только
+    // скинят цвета/иконки. Постер — на время loading/смены серии.
+    property string posterSource: ""
+    property string fontFamily: ""
+    property bool showEpisodeList: true
+    property bool showSkipOpening: false
+    // Ретро: плеер встроен в прокручиваемую страницу — вне cinema колесо
+    // должно скроллить страницу, а не крутить громкость.
+    property bool wheelPassThroughOutsideCinema: false
+
     readonly property bool active: player && player.hasMedia
     property bool cinemaMode: false
     property bool episodeListOpen: false
@@ -67,13 +77,13 @@ Item {
     readonly property int volumeOut: 100
     readonly property int borderRadius: 4
 
-    // Палитра uosc: белый/серый, полупрозрачность
-    readonly property color fg: "#ffffff"
-    readonly property color fgMuted: "#ffffff99"
-    readonly property color trackBg: "#b3000000"
-    readonly property color trackFill: "#ffffff"
-    readonly property color shadeTop: "#b3000000"
-    readonly property color shadeBottom: "#b3000000"
+    // Палитра uosc: белый/серый, полупрозрачность (темы могут переопределить)
+    property color fg: "#ffffff"
+    property color fgMuted: "#ffffff99"
+    property color trackBg: "#b3000000"
+    property color trackFill: "#ffffff"
+    property color shadeTop: "#b3000000"
+    property color shadeBottom: "#b3000000"
 
     property bool uiPinned: false
     property bool cursorHidden: false
@@ -302,6 +312,12 @@ Item {
     function handleWheel(wheel) {
         if (!root.active)
             return
+        // Ретро: плеер встроен в прокручиваемую страницу — вне cinema колесо
+        // уходит странице (скролл), а не крутит громкость.
+        if (root.wheelPassThroughOutsideCinema && !root.cinemaMode) {
+            wheel.accepted = false
+            return
+        }
         if (root.episodeListOpen && wheel.y >= episodeListPanel.y)
             return root.scrollEpisodeList(wheel)
         if (root.audioMenuOpen)
@@ -428,6 +444,39 @@ Item {
         sequence: "Down"
         enabled: root.active
         onActivated: root.adjustVolume(-5)
+    }
+
+    // ESC: закрыть меню/список, затем — выйти из полноэкранного режима.
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.active
+        onActivated: {
+            if (root.audioMenuOpen || root.subtitleMenuOpen || root.episodeListOpen) {
+                root.closeTrackMenus()
+                root.episodeListOpen = false
+                root.stickyEpisodeList = false
+            } else if (root.cinemaMode) {
+                root.requestCinemaToggle()
+            }
+        }
+    }
+
+    // Постер тайтла на время loading/смены серии — вместо чёрного экрана.
+    // Статичный (не слайдшоу), скрывается как только пошли кадры. Под всем
+    // хромом (z=0), поверх видео.
+    Image {
+        id: posterLoading
+        anchors.fill: parent
+        visible: root.posterSource !== "" && (!root.player.hasMedia || root.player.loading)
+        source: root.posterSource
+        fillMode: Image.PreserveAspectCrop
+        smooth: true
+        mipmap: true
+        clip: true
+        Rectangle {
+            anchors.fill: parent
+            color: "#55000000"
+        }
     }
 
     // --- Слой ввода (поверх видео, под UI)
@@ -849,6 +898,7 @@ Item {
                     UoscButton {
                         iconSource: root.playerIcon("menu.svg")
                         size: 32
+                        visible: root.showEpisodeList
                         active: root.episodeListOpen
                         buttonEnabled: root.effectiveMaxEpisode > 0
                         onClicked: {
@@ -870,6 +920,7 @@ Item {
                             width: parent.width
                             elide: Text.ElideRight
                             color: root.fg
+                            font.family: root.fontFamily
                             font.pixelSize: 12
                             font.bold: true
                             text: root.headerTitle
@@ -878,6 +929,7 @@ Item {
                             width: parent.width
                             elide: Text.ElideRight
                             color: root.fg
+                            font.family: root.fontFamily
                             font.pixelSize: 11
                             text: root.timeLineText
                         }
@@ -893,6 +945,13 @@ Item {
                         size: 36
                         buttonEnabled: root.playback && root.playback.currentEpisode > 1
                         onClicked: root.requestEpisode(root.playback.currentEpisode - 1)
+                    }
+                    // Пропуск опенинга (ретро-фича): +1:27 вперёд.
+                    UoscButton {
+                        label: "OP"
+                        size: 32
+                        visible: root.showSkipOpening
+                        onClicked: player.seekRelative(87)
                     }
                     UoscButton {
                         iconSource: player.paused ? root.playerIcon("play.svg") : root.playerIcon("pause.svg")
