@@ -28,6 +28,8 @@ public:
 
     Q_INVOKABLE QVariantList listByStatus(const QString &status);
 
+    void closeDatabase();
+
 private:
     void openDatabase();
 

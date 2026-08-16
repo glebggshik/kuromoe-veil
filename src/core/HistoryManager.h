@@ -54,6 +54,8 @@ signals:
 public slots:
     // Публичный: вызывается из aboutToQuit до разборки QGuiApplication.
     void flush();
+    // Явно закрыть SQLite (WAL checkpoint) до выхода — из Qwen workspace.
+    void closeDatabase();
 
 private:
     void openDatabase();

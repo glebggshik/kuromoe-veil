@@ -37,6 +37,7 @@
 #include "core/CatalogBridge.h"
 #include "core/DetailBridge.h"
 #include "core/HistoryManager.h"
+#include "core/StatusStore.h"
 #include "core/MpvPlayer.h"
 #include "core/NetworkManager.h"
 #include "core/PlaybackController.h"
@@ -297,6 +298,8 @@ int main(int argc, char *argv[]) {
         HistoryManager::instance()->flush();
         QThreadPool::globalInstance()->waitForDone(3000);
         NetworkManager::instance()->shutdown();
+        HistoryManager::instance()->closeDatabase();
+        StatusStore::instance()->closeDatabase();
     });
 
     const int code = app.exec();

@@ -10,6 +10,11 @@ StatusStore::StatusStore(QObject *parent) : QObject(parent) {
     openDatabase();
 }
 
+void StatusStore::closeDatabase() {
+    if (m_db.isOpen())
+        m_db.close();
+}
+
 StatusStore *StatusStore::instance() {
     static StatusStore *inst = new StatusStore(QCoreApplication::instance());
     return inst;

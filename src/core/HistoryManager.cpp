@@ -16,6 +16,11 @@ HistoryManager::HistoryManager(QObject *parent) : QObject(parent) {
 }
 
 HistoryManager::~HistoryManager() {
+    closeDatabase();
+}
+
+void HistoryManager::closeDatabase() {
+    m_saveTimer.stop();
     flush();
     if (m_db.isOpen())
         m_db.close();
