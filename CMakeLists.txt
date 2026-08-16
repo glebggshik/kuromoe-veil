@@ -83,6 +83,8 @@ qt_add_executable(anime_client_cpp ${_APP_WIN32_FLAG}
     src/core/CatalogBridge.cpp
     src/core/DetailBridge.h
     src/core/DetailBridge.cpp
+    src/core/TorrentRanking.h
+    src/core/TorrentRanking.cpp
     src/core/AniLibriaClient.h
     src/core/AniLibriaClient.cpp
     src/core/AnimegoClient.h

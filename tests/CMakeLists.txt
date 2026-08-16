@@ -13,3 +13,12 @@ target_include_directories(test_episode_parser PRIVATE ../src/core)
 target_link_libraries(test_episode_parser PRIVATE Qt6::Core Qt6::Test)
 
 add_test(NAME episode_parser COMMAND test_episode_parser)
+
+add_executable(test_torrent_ranking
+    test_torrent_ranking.cpp
+    ../src/core/TorrentRanking.cpp
+)
+target_include_directories(test_torrent_ranking PRIVATE ../src/core)
+target_link_libraries(test_torrent_ranking PRIVATE Qt6::Core Qt6::Test)
+
+add_test(NAME torrent_ranking COMMAND test_torrent_ranking)
