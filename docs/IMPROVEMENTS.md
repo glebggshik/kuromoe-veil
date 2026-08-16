@@ -44,30 +44,6 @@ PRAGMA synchronous=NORMAL;
 
 ## P2 — инфра и гигиена
 
-### 14. Git
-Репозитория нет. Для личного проекта всё равно полезно (откат, diff, бэкап истории).
-
-**Что сделать:**
-```
-git init
-```
-`.gitignore` минимум:
-```
-/build/
-/build_vs/
-/dist/
-/terminals/
-/agent-tools/
-*.log
-*.sqlite3
-.vs/
-CMakeUserPresets.json
-```
-
-**Размер:** S
-
----
-
 ### 15. Unit-тесты (то, что не зависит от сети)
 **Кандидаты:**
 | Модуль | Почему легко |
@@ -80,19 +56,6 @@ CMakeUserPresets.json
 CMake target + Qt Test / Catch2. Без CI сначала — `ctest` локально.
 
 **Размер:** M
-
----
-
-### 16. Почистить мусор в дереве (не исходники)
-| Путь | Действие |
-|------|----------|
-| `terminals/` | удалить / в `.gitignore` |
-| `agent-tools/` | удалить |
-| лишние `dist/*_1`, старые zip | оставить один актуальный релиз |
-| `qml/sandbox/` | оставить для экспериментов; не тащить в packaging (уже не в `QML_FILES`) |
-| `tools/*.py` probes | оставить; опционально `tools/README.md` «это не runtime» |
-
-**Размер:** S
 
 ---
 
