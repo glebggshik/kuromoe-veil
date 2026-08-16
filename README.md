@@ -79,6 +79,14 @@ cmake -S . -B build -DMPV_ROOT_HINT=C:/путь/к/libmpv ^
 
 CMake ищет `include/mpv/client.h`, `lib/mpv` и `bin/libmpv-2.dll` относительно `MPV_ROOT_HINT`; в крайнем случае задай `-DMPV_INCLUDE_DIR=... -DMPV_LIBRARY=...` напрямую.
 
+**Windows-релиз (одна команда, на Windows-машине с MSVC/vcpkg/windeployqt):**
+
+```bat
+packaging\windows\package-release.bat
+```
+
+Скрипт: vcpkg (манифест) → cmake → сборка Release → `windeployqt` → копия `libmpv-2.dll` → `dist\kuromoe-veil-win64.zip` (портабельный: exe + Qt-плагины + libmpv). Переменные `VCPKG_ROOT` / `MPV_ROOT` переопределяют пути (по умолчанию `C:\dev\vcpkg` и `C:\dev\libmpv`).
+
 Подробности — в [docs/MANUAL.md](docs/MANUAL.md).
 
 ## Настройки
