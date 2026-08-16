@@ -83,12 +83,14 @@ Item {
                 ComboBox {
                     id: themeBox
                     width: parent.width
+                    // Retro — тема по умолчанию и первая в списке; классическая
+                    // переименована в «Старая тема».
                     model: [
-                        { value: "dark", label: "Обычная (по умолчанию)" },
-                        { value: "retro", label: "Retro Terminal (CRT-фосфор, зелёный)" }
+                        { value: "retro", label: "Retro Terminal (CRT-фосфор, зелёный) — по умолчанию" },
+                        { value: "dark", label: "Старая тема" }
                     ]
                     textRole: "label"
-                    currentIndex: appConfig.theme === "retro" ? 1 : 0
+                    currentIndex: appConfig.theme === "retro" ? 0 : 1
                     onActivated: function(index) { appConfig.theme = model[index].value }
                     background: Rectangle { radius: Theme.cornerSmall; color: Theme.bgInput }
                     contentItem: Text {

@@ -166,9 +166,11 @@ Flickable {
             RetroSelect {
                 width: parent.width
                 label: "Тема оформления"
-                options: ["Обычная (по умолчанию)", "Retro Terminal (CRT-фосфор, зелёный)"]
-                Component.onCompleted: value = appConfig.theme === "retro" ? options[1] : options[0]
-                onChanged: function(v) { appConfig.theme = (v === options[1]) ? "retro" : "dark" }
+                // Retro — тема по умолчанию и первая в списке; классическая
+                // переименована в «Старая тема».
+                options: ["Retro Terminal (CRT-фосфор, зелёный) — по умолчанию", "Старая тема"]
+                Component.onCompleted: value = appConfig.theme === "retro" ? options[0] : options[1]
+                onChanged: function(v) { appConfig.theme = (v === options[0]) ? "retro" : "dark" }
             }
             Row {
                 spacing: 10

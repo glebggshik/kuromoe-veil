@@ -154,7 +154,8 @@ void AppConfig::setVolume(int v) {
     emit volumeChanged();
 }
 
-QString AppConfig::theme() const { return m_settings.value("ui/theme", "dark").toString(); }
+// Retro — тема по умолчанию (см. настройки: идёт первой в списке).
+QString AppConfig::theme() const { return m_settings.value("ui/theme", "retro").toString(); }
 void AppConfig::setTheme(const QString &t) {
     if (t == theme()) return;
     m_settings.setValue("ui/theme", t);

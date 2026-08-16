@@ -345,7 +345,7 @@ jacredUrl=https://jac.red
 token=               # кэшируется после первого fetch
 
 [ui]
-theme=dark
+theme=retro          # по умолчанию retro; "dark" — старая тема
 ```
 
 **Методы:** `mpvProxyUrl()`, `autoDetectTorrServer()`, `historyDbPath()`.
