@@ -354,6 +354,34 @@ Flickable {
                     }
                 }
             }
+            Row {
+                width: parent.width
+                spacing: 8
+                RetroTextField {
+                    id: torrHostField
+                    width: parent.width - torrPortField.width - 8
+                    placeholder: "127.0.0.1"
+                    text: appConfig.torrServerHost
+                    onEdited: function(v) { appConfig.torrServerHost = v.trim() }
+                }
+                RetroTextField {
+                    id: torrPortField
+                    width: 100
+                    placeholder: "8090"
+                    text: appConfig.torrServerPort
+                    onEdited: function(v) {
+                        const p = parseInt(v)
+                        if (!isNaN(p)) appConfig.torrServerPort = p
+                    }
+                }
+            }
+            Text {
+                width: parent.width
+                text: "// адрес TorrServer host:port, по умолчанию http://127.0.0.1:8090"
+                font.family: RetroTheme.fontFamily
+                font.pixelSize: 10
+                color: RetroTheme.muted
+            }
         }
 
         // === JACRED / KODIK ===

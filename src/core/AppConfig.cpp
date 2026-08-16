@@ -124,6 +124,28 @@ void AppConfig::setTorrServerPath(const QString &path) {
     emit torrServerPathChanged();
 }
 
+QString AppConfig::torrServerHost() const {
+    const QString host = m_settings.value("torrent/host", "127.0.0.1").toString().trimmed();
+    return host.isEmpty() ? QStringLiteral("127.0.0.1") : host;
+}
+void AppConfig::setTorrServerHost(const QString &host) {
+    const QString clean = host.trimmed();
+    if (clean == torrServerHost()) return;
+    m_settings.setValue("torrent/host", clean);
+    emit torrServerHostChanged();
+}
+
+int AppConfig::torrServerPort() const {
+    const int port = m_settings.value("torrent/port", 8090).toInt();
+    return (port > 0 && port <= 65535) ? port : 8090;
+}
+void AppConfig::setTorrServerPort(int port) {
+    const int clamped = qBound(1, port, 65535);
+    if (clamped == torrServerPort()) return;
+    m_settings.setValue("torrent/port", clamped);
+    emit torrServerPortChanged();
+}
+
 int AppConfig::volume() const { return m_settings.value("player/volume", 80).toInt(); }
 void AppConfig::setVolume(int v) {
     v = qBound(0, v, 100);

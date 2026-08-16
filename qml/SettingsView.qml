@@ -389,6 +389,50 @@ Item {
                     }
 
                 }
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    Rectangle {
+                        width: parent.width - torrPortField.width - 8
+                        height: 38
+                        radius: Theme.cornerSmall
+                        color: Theme.bgInput
+                        TextField {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            text: appConfig.torrServerHost
+                            color: root.fieldText
+                            placeholderTextColor: root.fieldPlaceholder
+                            selectedTextColor: "#121212"
+                            selectionColor: Theme.accent
+                            background: Item {}
+                            placeholderText: "127.0.0.1"
+                            onEditingFinished: appConfig.torrServerHost = text
+                        }
+                    }
+                    Rectangle {
+                        id: torrPortField
+                        width: 90
+                        height: 38
+                        radius: Theme.cornerSmall
+                        color: Theme.bgInput
+                        TextField {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            text: appConfig.torrServerPort
+                            color: root.fieldText
+                            placeholderTextColor: root.fieldPlaceholder
+                            selectedTextColor: "#121212"
+                            selectionColor: Theme.accent
+                            background: Item {}
+                            placeholderText: "8090"
+                            inputMethodHints: Qt.ImhDigitsOnly
+                            validator: IntValidator { bottom: 1; top: 65535 }
+                            onEditingFinished: appConfig.torrServerPort = parseInt(text)
+                        }
+                    }
+                }
+                Text { text: "Адрес TorrServer (host:port), по умолчанию http://127.0.0.1:8090"; color: Theme.textSecondary; font.pixelSize: 11 }
             }
 
             // === JacRed ===

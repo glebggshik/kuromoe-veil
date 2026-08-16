@@ -119,15 +119,6 @@ Space — play/pause, F — fullscreen, M — mute, ←/→ — seek, ↑/↓ �
 
 ---
 
-### 12. TorrServer host/port из настроек
-**Где:** `TorrentStreamManager::host()` → `http://127.0.0.1:8090`
-
-**Что сделать:** `AppConfig` + поле в Settings (default 8090).
-
-**Размер:** S
-
----
-
 ### 13. Debug ≠ Release (календарь)
 **Где:** `ShikimoriClient` — `#ifndef NDEBUG` отключает `enrichCalendarDays`
 

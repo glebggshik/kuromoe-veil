@@ -31,6 +31,13 @@ constexpr int kStreamReadyMaxAttempts = 90; // 90 * 500ms = 45s максимум
 
 TorrentStreamManager::TorrentStreamManager(QObject *parent) : QObject(parent) {}
 
+QString TorrentStreamManager::host() const {
+    AppConfig *cfg = AppConfig::instance();
+    return QStringLiteral("http://%1:%2")
+        .arg(cfg->torrServerHost())
+        .arg(cfg->torrServerPort());
+}
+
 TorrentStreamManager::~TorrentStreamManager() {
     shutdownServer();
 }

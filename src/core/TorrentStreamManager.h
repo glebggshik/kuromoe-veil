@@ -50,7 +50,8 @@ private:
 
     bool isServerResponding();
     bool isCurrentSession(int session) const { return session == m_playSession; }
-    QString host() const { return "http://127.0.0.1:8090"; }
+    // Host/port берутся из настроек (AppConfig), default http://127.0.0.1:8090.
+    QString host() const;
 
     QProcess *m_serverProcess = nullptr;
     bool m_serverConfirmedRunning = false;

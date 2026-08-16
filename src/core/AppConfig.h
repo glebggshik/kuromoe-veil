@@ -11,6 +11,8 @@ class AppConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString mpvPath READ mpvPath WRITE setMpvPath NOTIFY mpvPathChanged)
     Q_PROPERTY(QString torrServerPath READ torrServerPath WRITE setTorrServerPath NOTIFY torrServerPathChanged)
+    Q_PROPERTY(QString torrServerHost READ torrServerHost WRITE setTorrServerHost NOTIFY torrServerHostChanged)
+    Q_PROPERTY(int torrServerPort READ torrServerPort WRITE setTorrServerPort NOTIFY torrServerPortChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
 
@@ -42,6 +44,12 @@ public:
 
     QString torrServerPath() const;
     void setTorrServerPath(const QString &path);
+
+    QString torrServerHost() const;
+    void setTorrServerHost(const QString &host);
+
+    int torrServerPort() const;
+    void setTorrServerPort(int port);
 
     int volume() const;
     void setVolume(int v);
@@ -121,6 +129,8 @@ public:
 signals:
     void mpvPathChanged();
     void torrServerPathChanged();
+    void torrServerHostChanged();
+    void torrServerPortChanged();
     void volumeChanged();
     void themeChanged();
     void proxyChanged();
