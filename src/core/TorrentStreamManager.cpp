@@ -1,10 +1,12 @@
 #include "TorrentStreamManager.h"
 
 #include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QVector>
@@ -105,37 +107,42 @@ void TorrentStreamManager::ensureServerRunning(std::function<void()> onReady, in
 }
 
 void TorrentStreamManager::pollServerUntilReady(std::function<void()> onReady, int session) {
-    auto *attempts = new int(0);
-    auto *retryTimer = new QTimer(this);
-    retryTimer->setInterval(200);
-    connect(retryTimer, &QTimer::timeout, this, [this, onReady, attempts, retryTimer, session]() {
-        if (!isCurrentSession(session)) {
-            retryTimer->stop();
-            retryTimer->deleteLater();
-            delete attempts;
+    // Single-flight: ровно один /echo в полёте. Раньше таймер дёргал probe
+    // каждые 200 мс независимо от того, завершился ли прошлый (он висит до
+    // 1.5с по transferTimeout) — при медленном/молчащем сервере копилась
+    // пачка запросов, attempts гонялись между колбэками, а при нескольких
+    // успешных probe onReady() мог вызваться дважды. Теперь следующий probe
+    // стартует через 200 мс ПОСЛЕ завершения предыдущего, а бюджет — по
+    // реальному времени (15с), а не по числу попыток.
+    QPointer<TorrentStreamManager> self(this);
+    auto *elapsed = new QElapsedTimer();
+    elapsed->start();
+    auto probe = std::make_shared<std::function<void()>>();
+    *probe = [self, onReady, elapsed, session, probe]() {
+        if (!self || !self->isCurrentSession(session)) {
+            delete elapsed;
             return;
         }
-        (*attempts)++;
-        isServerRespondingAsync([this, onReady, attempts, retryTimer, session](bool ok) {
-            if (!isCurrentSession(session))
+        self->isServerRespondingAsync([self, onReady, elapsed, session, probe](bool ok) {
+            if (!self || !self->isCurrentSession(session)) {
+                delete elapsed;
                 return;
+            }
             if (ok) {
-                m_serverConfirmedRunning = true;
-                retryTimer->stop();
-                retryTimer->deleteLater();
-                delete attempts;
+                self->m_serverConfirmedRunning = true;
+                delete elapsed;
                 onReady();
                 return;
             }
-            if (*attempts > 75) { // ~15s
-                retryTimer->stop();
-                retryTimer->deleteLater();
-                delete attempts;
-                emit errorOccurred("TorrServer не запустился за 15 секунд.");
+            if (elapsed->elapsed() >= 15000) { // ~15s на запуск TorrServer
+                delete elapsed;
+                emit self->errorOccurred("TorrServer не запустился за 15 секунд.");
+                return;
             }
+            QTimer::singleShot(200, [probe]() { (*probe)(); });
         });
-    });
-    retryTimer->start();
+    };
+    (*probe)();
 }
 
 void TorrentStreamManager::shutdownServer() {
