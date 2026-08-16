@@ -380,6 +380,7 @@ Item {
             function sourceOf(id) {
                 if (root.isCvhTranslationId(id)) return "cvh"
                 if (root.isKodikTranslationId(id)) return "kodik"
+                if (root.isAnimetkaTranslationId(id)) return "animetka"
                 if (root.isHentasisTranslationId(id)) return "hentasis"
                 if (root.isAnistarTranslationId(id)) return "anistar"
                 return ""
@@ -909,7 +910,11 @@ Item {
                     color: root.anilibriaAvailable ? RetroTheme.mutedForeground : RetroTheme.destructive
                 }
                 Text {
+                    // «Не найдено/ошибка» — только после завершения загрузки
+                    // источника (state empty/error), иначе сообщение мигает:
+                    // translationsLoaded приходит от другого источника раньше.
                     visible: root.sourceType === "cvh" && root.translationsLoaded && !root.cvhAvailable
+                        && (!bridge.sourceStatus["cvh"] || bridge.sourceStatus["cvh"].state !== "loading")
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: {
@@ -924,6 +929,7 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "animetka" && root.translationsLoaded && !root.animetkaAvailable
+                        && (!bridge.sourceStatus["animetka"] || bridge.sourceStatus["animetka"].state !== "loading")
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: {
@@ -938,6 +944,7 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "kodik" && root.translationsLoaded && !root.kodikAvailable
+                        && (!bridge.sourceStatus["kodik"] || bridge.sourceStatus["kodik"].state !== "loading")
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: {

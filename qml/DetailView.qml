@@ -675,7 +675,12 @@ Item {
                     font.pixelSize: 11
                 }
                 Text {
+                    // «Не найдено/ошибка» показываем только после завершения
+                    // загрузки источника (state empty/error), а не пока он
+                    // грузится — иначе сообщение мигает: translationsLoaded
+                    // становится true от другого источника, а этот ещё в пути.
                     visible: root.sourceType === "cvh" && root.translationsLoaded && !root.cvhAvailable
+                        && (!bridge.sourceStatus["cvh"] || bridge.sourceStatus["cvh"].state !== "loading")
                     text: {
                         var st = bridge.sourceStatus["cvh"]
                         if (st && st.state === "error")
@@ -689,6 +694,7 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "kodik" && root.translationsLoaded && !root.kodikAvailable
+                        && (!bridge.sourceStatus["kodik"] || bridge.sourceStatus["kodik"].state !== "loading")
                     text: {
                         var st = bridge.sourceStatus["kodik"]
                         if (st && st.state === "error")
@@ -702,6 +708,7 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "animetka" && root.translationsLoaded && !root.animetkaAvailable
+                        && (!bridge.sourceStatus["animetka"] || bridge.sourceStatus["animetka"].state !== "loading")
                     text: {
                         var st = bridge.sourceStatus["animetka"]
                         if (st && st.state === "error")
@@ -715,6 +722,7 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "hentasis" && root.translationsLoaded && !root.hentasisAvailable
+                        && (!bridge.sourceStatus["hentasis"] || bridge.sourceStatus["hentasis"].state !== "loading")
                     text: "Hentasis: не найдено (зеркала могут быть недоступны)"
                     color: Theme.bad
                     font.pixelSize: 11
@@ -723,6 +731,7 @@ Item {
                 }
                 Text {
                     visible: root.sourceType === "anistar" && root.translationsLoaded && !root.anistarAvailable
+                        && (!bridge.sourceStatus["anistar"] || bridge.sourceStatus["anistar"].state !== "loading")
                     text: "AniStar: прямой стрим не найден (часто только торренты на сайте)"
                     color: Theme.bad
                     font.pixelSize: 11
