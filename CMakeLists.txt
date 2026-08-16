@@ -166,6 +166,7 @@ qt_add_qml_module(anime_client_cpp
         qml/BookmarksView.qml
         qml/SettingsView.qml
         qml/DetailView.qml
+        qml/sourceLogic.js
         qml/components/Card.qml
         qml/components/CalendarCard.qml
         qml/components/CalendarSection.qml

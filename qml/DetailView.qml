@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import AnimeClient 1.0
 import "components"
+import "sourceLogic.js" as SourceLogic
 
 // Экран тайтла — порт qml/DetailView.qml (Python-версия), метаданные/статус/
 // озвучки/торренты/связанное — через C++ DetailBridge (1:1 интерфейс со
@@ -104,14 +105,14 @@ Item {
     readonly property bool hentasisAvailable: root.translationsLoaded && root.hentasisTranslations.length > 0
     readonly property bool anistarAvailable: root.translationsLoaded && root.anistarTranslations.length > 0
     readonly property bool anilibriaSourceAvailable: root.anilibriaChecked && root.anilibriaAvailable
-    // Пока идёт поиск — кнопка видна. После завершения скрываем, если раздач нет
-    // (и нет сохранённого magnet).
-    readonly property bool torrentSourceVisible: root.hentaiItem
-        || root.torrentsLoading
-        || root.lastTorrentMagnet !== ""
-        || (root.torrentsLoaded && root.torrents.length > 0)
-    readonly property bool torrentSourceEnabled: root.lastTorrentMagnet !== ""
-        || (root.torrentsLoaded && !root.torrentsLoading && root.torrents.length > 0)
+    // Общая логика (sourceLogic.js): на обычном тайтле чип Torrent виден
+    // всегда; пусто → серый, не прятать. Хентай — как раньше.
+    readonly property bool torrentSourceVisible: SourceLogic.torrentChipVisible(
+        root.hentaiItem, root.torrentsLoading, root.lastTorrentMagnet !== "",
+        root.torrentsLoaded, root.torrents.length)
+    readonly property bool torrentSourceEnabled: SourceLogic.torrentChipEnabled(
+        root.lastTorrentMagnet !== "", root.torrentsLoading,
+        root.torrentsLoaded, root.torrents.length)
     readonly property bool torrentSourceAvailable: root.torrentSourceEnabled
 
     // Постер для оверлея загрузки плеера (retro имеет такой же posterSource).
@@ -332,14 +333,6 @@ Item {
         onTranslationsReady: function(list) {
             root.translations = list
             root.translationsLoaded = true
-            function sourceOf(id) {
-                if (root.isCvhTranslationId(id)) return "cvh"
-                if (root.isKodikTranslationId(id)) return "kodik"
-                if (root.isAnimetkaTranslationId(id)) return "animetka"
-                if (root.isHentasisTranslationId(id)) return "hentasis"
-                if (root.isAnistarTranslationId(id)) return "anistar"
-                return ""
-            }
             function baseAnimetkaId(id) {
                 if (!root.isAnimetkaTranslationId(id)) return id
                 var qpos = id.indexOf("_q")
@@ -351,7 +344,7 @@ Item {
                 var wantId = baseAnimetkaId(root.savedTranslationId)
                 var saved = list.find(function(t) { return t.id === wantId || t.id === root.savedTranslationId })
                 if (saved) {
-                    root.sourceType = sourceOf(saved.id)
+                    root.sourceType = SourceLogic.sourceOf(saved.id)
                     root.translationId = saved.id
                     if (root.sourceType === "animetka") {
                         var qpos2 = root.savedTranslationId.indexOf("_q")
@@ -372,7 +365,7 @@ Item {
                         root.translationId = root.kodikTranslations[0].id
                     }
                 } else if (list.length > 0) {
-                    root.sourceType = sourceOf(list[0].id)
+                    root.sourceType = SourceLogic.sourceOf(list[0].id)
                     root.translationId = list[0].id
                 }
             }
@@ -632,7 +625,7 @@ Item {
                         onClicked: root.selectSource("anilibria")
                     }
                     PillButton {
-                        text: root.torrentsLoading ? "Torrent …" : "Torrent"
+                        text: SourceLogic.torrentChipLabel(root.torrentsLoading)
                         visible: root.torrentSourceVisible
                         active: root.sourceType === "torrent"
                         enabled: root.torrentSourceEnabled
@@ -640,11 +633,20 @@ Item {
                     }
                     PillButton {
                         text: "Smash 💥"
-                        visible: !root.hentaiItem && root.torrentSourceVisible && (root.cvhAvailable || root.kodikAvailable)
+                        visible: SourceLogic.smashChipVisible(root.hentaiItem, root.cvhAvailable, root.kodikAvailable, root.torrentSourceVisible)
                         active: root.sourceType === "smash"
-                        enabled: (root.cvhAvailable || root.kodikAvailable) && root.torrentSourceEnabled
+                        enabled: SourceLogic.smashChipEnabled(root.cvhAvailable, root.kodikAvailable, root.torrentSourceEnabled)
                         onClicked: root.selectSource("smash")
                     }
+                }
+                // Smash выбран, но раздачи нет/не выбрана — подсказка, кнопку не прячем.
+                Text {
+                    visible: root.sourceType === "smash" && !root.torrentSourceEnabled
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    text: "Smash: нет выбранной раздачи — выбери торрент из списка"
                 }
                 Text {
                     visible: root.hentaiItem && !root.translationsLoaded
@@ -678,64 +680,58 @@ Item {
                     font.pixelSize: 11
                 }
                 Text {
-                    // «Не найдено/ошибка» показываем только после завершения
-                    // загрузки источника (state empty/error), а не пока он
-                    // грузится — иначе сообщение мигает: translationsLoaded
-                    // становится true от другого источника, а этот ещё в пути.
-                    visible: root.sourceType === "cvh" && root.translationsLoaded && !root.cvhAvailable
-                        && (!bridge.sourceStatus["cvh"] || bridge.sourceStatus["cvh"].state !== "loading")
-                    text: {
-                        var st = bridge.sourceStatus["cvh"]
-                        if (st && st.state === "error")
-                            return "CVH: ошибка — " + (st.message || "источник недоступен")
-                        return "CVH: озвучки не найдены на AnimeGO (для этого тайтла может не быть CVH)"
-                    }
+                    // Красный текст источника — только при state error/empty
+                    // (sourceLogic.js); пока loading/нет статуса — ничего, без
+                    // мигания от translationsLoaded других источников.
+                    visible: root.sourceType === "cvh" && SourceLogic.sourceStatusShowError("cvh", bridge.sourceStatus)
+                    text: SourceLogic.sourceStatusText("cvh", bridge.sourceStatus, {
+                        empty: "CVH: озвучки не найдены на AnimeGO (для этого тайтла может не быть CVH)",
+                        errorPrefix: "CVH: ошибка — "
+                    })
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
                     width: parent.width
                 }
                 Text {
-                    visible: root.sourceType === "kodik" && root.translationsLoaded && !root.kodikAvailable
-                        && (!bridge.sourceStatus["kodik"] || bridge.sourceStatus["kodik"].state !== "loading")
-                    text: {
-                        var st = bridge.sourceStatus["kodik"]
-                        if (st && st.state === "error")
-                            return "Kodik: ошибка — " + (st.message || "источник недоступен") + " (нужен прокси?)"
-                        return "Kodik: озвучки не найдены (см. Настройки → прокси, либо временная блокировка)"
-                    }
+                    visible: root.sourceType === "kodik" && SourceLogic.sourceStatusShowError("kodik", bridge.sourceStatus)
+                    text: SourceLogic.sourceStatusText("kodik", bridge.sourceStatus, {
+                        empty: "Kodik: озвучки не найдены (см. Настройки → прокси, либо временная блокировка)",
+                        errorPrefix: "Kodik: ошибка — "
+                    })
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
                     width: parent.width
                 }
                 Text {
-                    visible: root.sourceType === "animetka" && root.translationsLoaded && !root.animetkaAvailable
-                        && (!bridge.sourceStatus["animetka"] || bridge.sourceStatus["animetka"].state !== "loading")
-                    text: {
-                        var st = bridge.sourceStatus["animetka"]
-                        if (st && st.state === "error")
-                            return "Animetka: ошибка — " + (st.message || "источник недоступен")
-                        return "Animetka: тайтл не найден или API недоступен"
-                    }
+                    visible: root.sourceType === "animetka" && SourceLogic.sourceStatusShowError("animetka", bridge.sourceStatus)
+                    text: SourceLogic.sourceStatusText("animetka", bridge.sourceStatus, {
+                        empty: "Animetka: тайтл не найден или API недоступен",
+                        errorPrefix: "Animetka: ошибка — "
+                    })
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
                     width: parent.width
                 }
                 Text {
-                    visible: root.sourceType === "hentasis" && root.translationsLoaded && !root.hentasisAvailable
-                        && (!bridge.sourceStatus["hentasis"] || bridge.sourceStatus["hentasis"].state !== "loading")
-                    text: "Hentasis: не найдено (зеркала могут быть недоступны)"
+                    visible: root.sourceType === "hentasis" && SourceLogic.sourceStatusShowError("hentasis", bridge.sourceStatus)
+                    text: SourceLogic.sourceStatusText("hentasis", bridge.sourceStatus, {
+                        empty: "Hentasis: не найдено (зеркала могут быть недоступны)",
+                        errorPrefix: "Hentasis: ошибка — "
+                    })
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
                     width: parent.width
                 }
                 Text {
-                    visible: root.sourceType === "anistar" && root.translationsLoaded && !root.anistarAvailable
-                        && (!bridge.sourceStatus["anistar"] || bridge.sourceStatus["anistar"].state !== "loading")
-                    text: "AniStar: прямой стрим не найден (часто только торренты на сайте)"
+                    visible: root.sourceType === "anistar" && SourceLogic.sourceStatusShowError("anistar", bridge.sourceStatus)
+                    text: SourceLogic.sourceStatusText("anistar", bridge.sourceStatus, {
+                        empty: "AniStar: прямой стрим не найден (часто только торренты на сайте)",
+                        errorPrefix: "AniStar: ошибка — "
+                    })
                     color: Theme.bad
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
