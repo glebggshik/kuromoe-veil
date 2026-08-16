@@ -4,6 +4,24 @@
 
 Каталог — Shikimori, озвучки — Kodik / AnimeGO / AniLibria, торренты — JacRed + TorrServer.
 
+## Скриншоты
+
+Главная:
+
+![Home](docs/screenshots/home.jpg)
+
+Карточка тайтла и плеер:
+
+![Detail](docs/screenshots/detail.jpg)
+
+Каталог:
+
+![Browse](docs/screenshots/browse.jpg)
+
+Закладки:
+
+![Bookmarks](docs/screenshots/bookmarks.jpg)
+
 ## Сборка
 
 Зависимости: CMake ≥ 3.21, **три** модуля Qt 6 (не весь Qt) и libmpv.
