@@ -201,8 +201,14 @@ Flickable {
                 id: heroImg
                 anchors.fill: parent
                 source: root.heroDisplaySource
+                // Иначе Qt на Linux декодирует под высоту плашки (~280px) и
+                // растягивает — баннер выглядит мыльным. Как в HeroBanner.qml.
+                sourceSize: Qt.size(2560, 1440)
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
+                smooth: true
+                mipmap: true
+                cache: false
             }
 
             Rectangle {

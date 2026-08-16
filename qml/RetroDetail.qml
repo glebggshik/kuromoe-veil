@@ -492,8 +492,12 @@ Item {
                     anchors.fill: parent
                     visible: root.heroDisplaySource.length > 0
                     source: root.heroDisplaySource
+                    sourceSize: Qt.size(2560, 1440)
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
+                    smooth: true
+                    mipmap: true
+                    cache: false
                     opacity: 0.35
                 }
                 Rectangle {

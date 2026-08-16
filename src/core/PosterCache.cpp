@@ -457,7 +457,18 @@ bool writeValidatedImage(const QString &dest, const QByteArray &data, const QStr
     if (!decodeImageBytes(data, remoteUrl, &probe))
         return false;
     QFile::remove(dest);
-    if (!probe.save(dest, "JPEG", 92))
+    // Оригинал (jpeg/png/webp) без пересжатия — QImage::save JPEG=92 на Linux
+    // даёт заметный шакал на широких AniList-баннерах.
+    {
+        QFile out(dest);
+        if (out.open(QIODevice::WriteOnly) && out.write(data) == data.size()) {
+            out.close();
+            if (isValidImageFile(dest, remoteUrl))
+                return true;
+        }
+        QFile::remove(dest);
+    }
+    if (!probe.save(dest, "JPEG", 95))
         return false;
     return isValidImageFile(dest, remoteUrl);
 }
