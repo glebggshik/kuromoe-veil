@@ -42,19 +42,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-## P1 — стабильность и UX
-
-### 5. Убрать `QEventLoop` с GUI-потока
-**Где:** `TorrentStreamManager::isServerResponding`, синхронные куски `PosterCache`
-
-Блокировка event loop → микрофризы при старте TorrServer / картинках.
-
-**Что сделать:** полностью async (callback / signal), без `loop.exec()` на main thread.
-
-**Размер:** M
-
----
-
 ## P2 — инфра и гигиена
 
 ### 14. Git

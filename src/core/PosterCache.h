@@ -26,9 +26,6 @@ public:
     // карты готовых. Возвращает число удалённых файлов. Кнопка в Настройках.
     Q_INVOKABLE int clearDiskCache();
 
-    // Hero-баннер: вне очереди каталога (иначе 50+ постеров блокируют приоритет).
-    QString ensureCachedSync(const QString &remoteUrl);
-
     QString filePathForId(const QString &id) const;
 
     // LRU: если кэш постеров > 500 МБ — удалить самые старые файлы.

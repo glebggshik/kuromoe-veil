@@ -1,7 +1,6 @@
 #include "TorrentStreamManager.h"
 
 #include <QDeadlineTimer>
-#include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkReply>
@@ -42,79 +41,70 @@ TorrentStreamManager::~TorrentStreamManager() {
     shutdownServer();
 }
 
-bool TorrentStreamManager::isServerResponding() {
+void TorrentStreamManager::isServerRespondingAsync(std::function<void(bool)> callback) {
     QNetworkRequest req(QUrl(host() + "/echo"));
+    // Таймаут вместо ручного QEventLoop+QTimer: при молчаливом дропе SYN
+    // (Windows Firewall) reply сам завершится с TimeoutError — ok=false.
+    req.setTransferTimeout(1500);
     QNetworkReply *reply = NetworkManager::instance()->getLocal(req);
-    QEventLoop loop;
-    QTimer timeoutTimer;
-    bool replyFinished = false;
-    timeoutTimer.setSingleShot(true);
-    connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    connect(reply, &QNetworkReply::finished, &loop, [&loop, &replyFinished]() {
-        replyFinished = true;
-        loop.quit();
+    QObject::connect(reply, &QNetworkReply::finished, reply, [reply, callback]() {
+        const bool ok = reply->error() == QNetworkReply::NoError;
+        reply->deleteLater();
+        callback(ok);
     });
-    timeoutTimer.start(1500);
-    loop.exec();
-    // Проверяем ОБА условия: reply должен завершиться (не просто таймаут)
-    // И не иметь сетевой ошибки.
-    // Без этого при молчаливом дропе SYN (Windows Firewall) таймер срабатывал
-    // первым — reply->error() ещё NoError (ответ не получен, но ошибки нет),
-    // и функция ложно возвращала true, пропуская запуск TorrServer.
-    bool ok = replyFinished && reply->error() == QNetworkReply::NoError;
-    reply->deleteLater();
-    return ok;
 }
 
 void TorrentStreamManager::ensureServerRunning(std::function<void()> onReady, int session) {
-    if (m_serverConfirmedRunning && isServerResponding()) {
-        if (isCurrentSession(session))
+    // Без QEventLoop на GUI-потоке: проверка /echo асинхронная.
+    isServerRespondingAsync([this, onReady, session](bool ok) {
+        if (!isCurrentSession(session))
+            return;
+        if (ok) {
+            m_serverConfirmedRunning = true;
             onReady();
-        return;
-    }
-    if (isServerResponding()) {
-        m_serverConfirmedRunning = true;
+            return;
+        }
+
+        // Сервер не отвечает — запускаем процесс (если путь указан) и поллим.
+        const QString exePath = AppConfig::instance()->torrServerPath();
+        if (exePath.isEmpty()) {
+            if (isCurrentSession(session))
+                emit errorOccurred("TorrServer не найден. Укажи путь к TorrServer-windows-amd64.exe в настройках.");
+            return;
+        }
         if (isCurrentSession(session))
-            onReady();
-        return;
-    }
+            emit statusChanged("Запуск TorrServer...");
+        if (!m_serverProcess) {
+            m_serverProcess = new QProcess(this);
+            // Раньше вывод TorrServer уходил в nullDevice — если процесс сразу
+            // же закрывался (например, порт уже занят другим TorrServer'ом),
+            // причина оставалась невидимой, а плеер просто вис на "LOADING...".
+            // Пробрасываем его stdout/stderr в наш лог.
+            m_serverProcess->setProcessChannelMode(QProcess::MergedChannels);
+            connect(m_serverProcess, &QProcess::readyReadStandardOutput, this, [this]() {
+                const QList<QByteArray> lines = m_serverProcess->readAllStandardOutput().split('\n');
+                for (const QByteArray &line : lines) {
+                    const QByteArray trimmed = line.trimmed();
+                    if (!trimmed.isEmpty())
+                        qInfo("TorrServer: %s", trimmed.constData());
+                }
+            });
+            // Если TorrServer упал/закрылся — сбрасываем флаг, чтобы следующий
+            // вызов ensureServerRunning не считал его живым и запустил заново.
+            connect(m_serverProcess, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus) {
+                qWarning("TorrServer: процесс завершился (exitCode=%d)", exitCode);
+                m_serverConfirmedRunning = false;
+            });
+        }
+        if (m_serverProcess->state() == QProcess::NotRunning) {
+            qInfo("TorrServer: запускаем %s", qUtf8Printable(exePath));
+            m_serverProcess->start(exePath, {});
+        }
+        pollServerUntilReady(onReady, session);
+    });
+}
 
-    QString exePath = AppConfig::instance()->torrServerPath();
-    if (exePath.isEmpty()) {
-        if (isCurrentSession(session))
-            emit errorOccurred("TorrServer не найден. Укажи путь к TorrServer-windows-amd64.exe в настройках.");
-        return;
-    }
-
-    if (isCurrentSession(session))
-        emit statusChanged("Запуск TorrServer...");
-    if (!m_serverProcess) {
-        m_serverProcess = new QProcess(this);
-        // Раньше вывод TorrServer уходил в nullDevice — если процесс сразу
-        // же закрывался (например, порт уже занят другим TorrServer'ом),
-        // причина оставалась невидимой, а плеер просто вис на "LOADING...".
-        // Пробрасываем его stdout/stderr в наш лог.
-        m_serverProcess->setProcessChannelMode(QProcess::MergedChannels);
-        connect(m_serverProcess, &QProcess::readyReadStandardOutput, this, [this]() {
-            const QList<QByteArray> lines = m_serverProcess->readAllStandardOutput().split('\n');
-            for (const QByteArray &line : lines) {
-                const QByteArray trimmed = line.trimmed();
-                if (!trimmed.isEmpty())
-                    qInfo("TorrServer: %s", trimmed.constData());
-            }
-        });
-        // Если TorrServer упал/закрылся — сбрасываем флаг, чтобы следующий
-        // вызов ensureServerRunning не считал его живым и запустил заново.
-        connect(m_serverProcess, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus) {
-            qWarning("TorrServer: процесс завершился (exitCode=%d)", exitCode);
-            m_serverConfirmedRunning = false;
-        });
-    }
-    if (m_serverProcess->state() == QProcess::NotRunning) {
-        qInfo("TorrServer: запускаем %s", qUtf8Printable(exePath));
-        m_serverProcess->start(exePath, {});
-    }
-
+void TorrentStreamManager::pollServerUntilReady(std::function<void()> onReady, int session) {
     auto *attempts = new int(0);
     auto *retryTimer = new QTimer(this);
     retryTimer->setInterval(200);
@@ -126,20 +116,24 @@ void TorrentStreamManager::ensureServerRunning(std::function<void()> onReady, in
             return;
         }
         (*attempts)++;
-        if (isServerResponding()) {
-            m_serverConfirmedRunning = true;
-            retryTimer->stop();
-            retryTimer->deleteLater();
-            delete attempts;
-            onReady();
-            return;
-        }
-        if (*attempts > 75) { // ~15s
-            retryTimer->stop();
-            retryTimer->deleteLater();
-            delete attempts;
-            emit errorOccurred("TorrServer не запустился за 15 секунд.");
-        }
+        isServerRespondingAsync([this, onReady, attempts, retryTimer, session](bool ok) {
+            if (!isCurrentSession(session))
+                return;
+            if (ok) {
+                m_serverConfirmedRunning = true;
+                retryTimer->stop();
+                retryTimer->deleteLater();
+                delete attempts;
+                onReady();
+                return;
+            }
+            if (*attempts > 75) { // ~15s
+                retryTimer->stop();
+                retryTimer->deleteLater();
+                delete attempts;
+                emit errorOccurred("TorrServer не запустился за 15 секунд.");
+            }
+        });
     });
     retryTimer->start();
 }

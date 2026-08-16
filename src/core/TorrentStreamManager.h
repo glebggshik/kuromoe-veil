@@ -42,13 +42,16 @@ signals:
 
 private:
     void ensureServerRunning(std::function<void()> onReady, int session);
+    void pollServerUntilReady(std::function<void()> onReady, int session);
     void addMagnet(const QString &magnet, const QString &title, int session,
                    std::function<void(QString hash)> onAdded);
     void waitForFiles(const QString &hash, const QString &magnet, const QString &title, int session,
                       int readdAttempts, std::function<void(QJsonObject info)> onFiles);
     void pickAndWaitStream(const QString &hash, const QJsonObject &info, int episode, int session);
 
-    bool isServerResponding();
+    // Асинхронный probe /echo (без QEventLoop на GUI-потоке). reply сам
+    // завершится по transferTimeout при молчаливом дропе SYN (Firewall).
+    void isServerRespondingAsync(std::function<void(bool ok)> callback);
     bool isCurrentSession(int session) const { return session == m_playSession; }
     // Host/port берутся из настроек (AppConfig), default http://127.0.0.1:8090.
     QString host() const;

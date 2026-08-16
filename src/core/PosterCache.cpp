@@ -6,7 +6,6 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
-#include <QEventLoop>
 #include <QFile>
 #include <QBuffer>
 #include <QColorSpace>
@@ -251,62 +250,6 @@ QByteArray readCompleteReplyData(QNetworkReply *reply, const QString &url) {
     return data;
 }
 
-struct ImageDownloadResult {
-    QByteArray data;
-    bool stalled = false;
-};
-
-ImageDownloadResult waitForImageDownload(QNetworkReply *reply, const QString &url) {
-    ImageDownloadResult result;
-    QElapsedTimer timer;
-    timer.start();
-    auto progress = std::make_shared<DownloadProgress>();
-
-    QEventLoop loop;
-    QTimer stallCheck;
-    stallCheck.setInterval(kStallCheckIntervalMs);
-
-    QObject::connect(&stallCheck, &QTimer::timeout, reply, [&]() {
-        if (reply->isFinished())
-            return;
-        const qint64 elapsed = timer.elapsed();
-        if (isDownloadStalled(*progress, elapsed)) {
-            result.stalled = true;
-            reply->abort();
-            loop.quit();
-        }
-    });
-    QObject::connect(
-        reply, &QNetworkReply::downloadProgress, reply,
-        [progress, &timer](qint64 received, qint64) {
-            noteDownloadProgress(progress.get(), received, timer.elapsed());
-        });
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-
-    stallCheck.start();
-    loop.exec();
-    stallCheck.stop();
-
-    const qint64 elapsedMs = timer.elapsed();
-    if (result.stalled) {
-        qWarning(
-            "PosterCache: download stalled %s (no data for %d s)",
-            qUtf8Printable(url),
-            kStallTimeoutMs / 1000);
-    } else if (reply->error() == QNetworkReply::NoError) {
-        result.data = readCompleteReplyData(reply, url);
-        if (!result.data.isEmpty())
-            logDownloadSpeed(url, result.data.size(), elapsedMs);
-    } else {
-        qWarning(
-            "PosterCache: download failed %s — %s",
-            qUtf8Printable(url),
-            qUtf8Printable(reply->errorString()));
-    }
-    reply->deleteLater();
-    return result;
-}
-
 void attachStallWatch(PosterCache *owner, QNetworkReply *reply, const QString &url) {
     auto progress = std::make_shared<DownloadProgress>();
     auto timer = std::make_shared<QElapsedTimer>();
@@ -490,70 +433,6 @@ bool writeValidatedImage(const QString &dest, const QByteArray &data, const QStr
 }
 
 } // namespace
-
-QString PosterCache::ensureCachedSync(const QString &remoteUrl) {
-    if (remoteUrl.isEmpty() || !isRemotePoster(remoteUrl))
-        return {};
-
-    const QString dest = cachePathFor(remoteUrl);
-
-    if (m_done.contains(remoteUrl)) {
-        const QString path = QUrl(m_done.value(remoteUrl)).toLocalFile();
-        if (isValidImageFile(path, remoteUrl))
-            return m_done.value(remoteUrl);
-        m_done.remove(remoteUrl);
-        QFile::remove(path);
-    }
-    if (isValidImageFile(dest, remoteUrl)) {
-        const QString fileUrl = QUrl::fromLocalFile(dest).toString();
-        m_done.insert(remoteUrl, fileUrl);
-        return fileUrl;
-    }
-
-    QFile::remove(dest);
-    m_done.remove(remoteUrl);
-    m_pendingHigh.removeAll(remoteUrl);
-    m_pendingNormal.removeAll(remoteUrl);
-    m_inFlight.remove(remoteUrl);
-
-    QDir().mkpath(cacheDir());
-
-    const int minBytes = remoteUrl.contains(QStringLiteral("anilist"), Qt::CaseInsensitive) ? 10000 : 1024;
-
-    qInfo(
-        "PosterCache: hero download %s %s (no time limit, stall=%ds)",
-        imageDownloadRoute(remoteUrl),
-        qUtf8Printable(remoteUrl),
-        kStallTimeoutMs / 1000);
-
-    auto downloadBytes = [&](QNetworkRequest::CacheLoadControl mode) -> QByteArray {
-        QNetworkRequest req{QUrl(remoteUrl)};
-        applyImageRequestHeaders(req, remoteUrl);
-        req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, mode);
-        QNetworkReply *reply = startImageDownload(req, remoteUrl);
-        return waitForImageDownload(reply, remoteUrl).data;
-    };
-
-    QByteArray data = downloadBytes(QNetworkRequest::AlwaysNetwork);
-    if (data.size() < minBytes || !writeValidatedImage(dest, data, remoteUrl)) {
-        QFile::remove(dest);
-        data = downloadBytes(QNetworkRequest::AlwaysNetwork);
-        if (data.size() < minBytes || !writeValidatedImage(dest, data, remoteUrl)) {
-            qWarning(
-                "PosterCache: hero image invalid %s (%d bytes)",
-                qUtf8Printable(remoteUrl),
-                data.size());
-            QFile::remove(dest);
-            return {};
-        }
-    }
-
-    const QString fileUrl = QUrl::fromLocalFile(dest).toString();
-    m_done.insert(remoteUrl, fileUrl);
-    emit posterReady(remoteUrl, fileUrl);
-    scheduleCacheLimitCheck();
-    return fileUrl;
-}
 
 void PosterCache::requestPriority(const QString &remoteUrl) {
     if (remoteUrl.isEmpty() || !isRemotePoster(remoteUrl))
