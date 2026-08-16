@@ -1,0 +1,14 @@
+/build/
+/build_vs/
+/build_animetka/
+/dist/
+/terminals/
+/agent-tools/
+*.log
+*.sqlite3
+.vs/
+CMakeUserPresets.json
+__pycache__/
+*.pyc
+log.txt
+playerbtn.txt

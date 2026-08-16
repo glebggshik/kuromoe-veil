@@ -1,0 +1,39 @@
+/* Файл для открытия в Qt Design Studio как полноценного проекта (Open
+   Project -> этот файл), а не отдельных .qml-файлов напрямую — иначе
+   live-preview бридж Design Studio (AppBridge) не находит свои модули.
+
+   HomeView.qml использует только стандартные QtQuick/QtQuick.Controls —
+   открывается и превьюшится в Design Studio без проблем.
+
+   DetailView.qml импортирует наш кастомный модуль AnimeClient (MpvPlayer,
+   PlaybackController) — он собирается C++-компилятором, Design Studio его
+   не строит, поэтому live-preview именно этого файла будет показывать
+   ошибки про неизвестные типы MpvPlayer/PlaybackController. Это ожидаемо —
+   редактируй разметку текстом, а проверять с реальными данными — через
+   обычную сборку (cmake --build), не через Design Studio. */
+
+import QmlProject
+
+Project {
+    mainFile: "HomeView.qml"
+
+    QmlFiles {
+        directory: "."
+    }
+
+    JavaScriptFiles {
+        directory: "."
+    }
+
+    ImageFiles {
+        directory: "."
+    }
+
+    Environment {
+        QT_QUICK_CONTROLS_STYLE: "Basic"
+    }
+
+    qdsVersion: "4.8"
+
+    quickVersion: "6.8"
+}

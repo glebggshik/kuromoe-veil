@@ -1,0 +1,3 @@
+module Sandbox
+singleton Theme 1.0 Theme.qml
+singleton RetroTheme 1.0 RetroTheme.qml

@@ -1,0 +1,24 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title desc" role="img">
+  <title id="title">KuroMoe Veil Logo</title>
+  <desc id="desc">Готический кавай логотип с вуалью, луной и аниме-эстетикой</desc>
+  <!-- Основной круг + фон (зелёный) -->
+  <circle cx="200" cy="200" r="180" fill="#1f3f2f" stroke="#1a8f6b" stroke-width="25"/>
+  <circle cx="200" cy="200" r="155" fill="#1f3f2f" opacity="0.95"/>
+  <!-- Вуаль/покров (ярче) -->
+  <path d="M80 120 Q150 50 200 120 Q250 50 320 120 L320 280 Q250 350 200 280 Q150 350 80 280 Z" fill="#2a5a4a" opacity="0.92"/>
+  <!-- Луна -->
+  <circle cx="280" cy="130" r="45" fill="#39ff9f" opacity="0.8"/>
+  <circle cx="290" cy="120" r="35" fill="#1f3f2f"/>
+  <!-- Аниме глазки -->
+  <ellipse cx="160" cy="190" rx="28" ry="45" fill="#fff"/>
+  <ellipse cx="240" cy="190" rx="28" ry="45" fill="#fff"/>
+  <circle cx="160" cy="190" r="15" fill="#0a3d2b"/>
+  <circle cx="240" cy="190" r="15" fill="#0a3d2b"/>
+  <circle cx="165" cy="185" r="7" fill="#fff"/>
+  <circle cx="245" cy="185" r="7" fill="#fff"/>
+  <!-- Ротик -->
+  <path d="M170 240 Q200 265 230 240" fill="none" stroke="#39ff9f" stroke-width="8" stroke-linecap="round"/>
+  <!-- Сердечки-шипы -->
+  <path d="M110 280 L120 300 L105 310 Z" fill="#39ff9f"/>
+  <path d="M290 280 L280 300 L295 310 Z" fill="#39ff9f"/>
+</svg>

@@ -1,0 +1,152 @@
+import QtQuick
+import QtQuick.Controls
+
+// Главная страница — хиро-баннер + сетка карточек каталога.
+//
+// Данные сейчас мок (cardModel ниже) — реальный каталог (Kodik/AniLibria/
+// JacRed) ещё не портирован из Python-версии. Когда он появится, model
+// просто заменится на результат C++-бриджа (как cardModel сейчас),
+// разметка карточек/хиро менять не придётся.
+//
+// Это страница для дизайна — переделывай свободно цвета/отступы/анимации,
+// просто не меняй сигнатуру cardClicked(item) и heroPlayClicked() ниже,
+// если не предупредишь меня — Main.qml на них завязан.
+Item {
+    id: root
+
+    signal cardClicked(var item)
+    signal heroPlayClicked(var item)
+
+    property var heroItem: cardModel.count > 0 ? cardModel.get(0) : null
+
+    ListModel {
+        id: cardModel
+        ListElement { itemId: "1"; title: "Атака титанов"; score: 9.0; kind: "ТВ"; episodes: 87; accent: "#c0392b" }
+        ListElement { itemId: "2"; title: "Магическая битва"; score: 8.6; kind: "ТВ"; episodes: 47; accent: "#8e44ad" }
+        ListElement { itemId: "3"; title: "Клинок, рассекающий демонов"; score: 8.7; kind: "ТВ"; episodes: 55; accent: "#16a085" }
+        ListElement { itemId: "4"; title: "Человек-бензопила"; score: 8.5; kind: "ТВ"; episodes: 12; accent: "#d35400" }
+        ListElement { itemId: "5"; title: "Моя геройская академия"; score: 8.0; kind: "ТВ"; episodes: 159; accent: "#2980b9" }
+        ListElement { itemId: "6"; title: "Токийский гуль"; score: 7.8; kind: "ТВ"; episodes: 12; accent: "#27ae60" }
+    }
+
+    Flickable {
+        anchors.fill: parent
+        contentHeight: contentColumn.height
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: contentColumn
+            width: parent.width
+            spacing: 24
+
+            // ---- Хиро-баннер ----
+            Rectangle {
+                width: parent.width
+                height: 320
+                color: root.heroItem ? root.heroItem.accent : "#222"
+
+                Column {
+                    anchors.left: parent.left
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 32
+                    spacing: 12
+
+                    Text {
+                        text: root.heroItem ? root.heroItem.title : ""
+                        color: "white"
+                        font.pixelSize: 36
+                        font.bold: true
+                    }
+                    Text {
+                        text: root.heroItem
+                            ? (root.heroItem.kind + " · " + root.heroItem.episodes + " серий · ★ " + root.heroItem.score)
+                            : ""
+                        color: "#eeeeee"
+                        font.pixelSize: 16
+                    }
+                    Button {
+                        text: "Смотреть"
+                        onClicked: root.heroPlayClicked(root.heroItem)
+                    }
+                }
+            }
+
+            // ---- Сетка карточек ----
+            Text {
+                text: "Каталог"
+                color: "white"
+                font.pixelSize: 22
+                font.bold: true
+                leftPadding: 32
+            }
+
+            Grid {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 32
+                columns: Math.max(1, Math.floor((parent.width - 64) / 200))
+                columnSpacing: 16
+                rowSpacing: 16
+
+                Repeater {
+                    model: cardModel
+                    delegate: Rectangle {
+                        width: 180
+                        height: 260
+                        radius: 8
+                        color: "#1c1c1c"
+                        border.color: hovered ? "#ffffff" : "transparent"
+                        border.width: 1
+
+                        property bool hovered: false
+
+                        Rectangle {
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            height: 200
+                            radius: 8
+                            color: accent
+                        }
+
+                        Column {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.topMargin: 208
+                            anchors.margins: 8
+                            spacing: 4
+
+                            Text {
+                                text: title
+                                color: "white"
+                                font.pixelSize: 13
+                                font.bold: true
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+                            Text {
+                                text: kind + " · ★ " + score
+                                color: "#aaaaaa"
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: parent.hovered = true
+                            onExited: parent.hovered = false
+                            onClicked: root.cardClicked({
+                                itemId: itemId, title: title, score: score,
+                                kind: kind, episodes: episodes, accent: accent,
+                            })
+                        }
+                    }
+                }
+            }
+
+            Item { width: 1; height: 24 } // нижний отступ под прокрутку
+        }
+    }
+}

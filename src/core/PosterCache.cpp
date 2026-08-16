@@ -1,0 +1,627 @@
+#include "PosterCache.h"
+
+#include "AppConfig.h"
+#include "NetworkManager.h"
+
+#include <QCryptographicHash>
+#include <QDir>
+#include <QEventLoop>
+#include <QFile>
+#include <QBuffer>
+#include <QFileInfo>
+#include <QImage>
+#include <QImageReader>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QElapsedTimer>
+#include <QPointer>
+#include <QStandardPaths>
+#include <QTimer>
+#include <QUrl>
+#include <QtConcurrent>
+#include <memory>
+
+namespace {
+
+bool isValidImageFile(const QString &path, const QString &remoteUrl);
+
+} // namespace
+
+PosterCache *PosterCache::instance() {
+    static PosterCache inst;
+    return &inst;
+}
+
+PosterCache::PosterCache(QObject *parent) : QObject(parent) {}
+
+QString PosterCache::cacheDir() const {
+    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/posters");
+}
+
+QString PosterCache::cachePathFor(const QString &remoteUrl) const {
+    const QByteArray hash = QCryptographicHash::hash(remoteUrl.toUtf8(), QCryptographicHash::Sha1).toHex();
+    QString ext = QStringLiteral("img");
+    if (remoteUrl.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive)
+        || remoteUrl.contains(QStringLiteral(".jpg"), Qt::CaseInsensitive))
+        ext = QStringLiteral("jpg");
+    else if (remoteUrl.contains(QStringLiteral(".png"), Qt::CaseInsensitive))
+        ext = QStringLiteral("png");
+    else if (remoteUrl.contains(QStringLiteral(".webp"), Qt::CaseInsensitive))
+        ext = QStringLiteral("webp");
+    return cacheDir() + QLatin1Char('/') + QString::fromLatin1(hash) + QLatin1Char('.') + ext;
+}
+
+QString PosterCache::posterId(const QString &remoteUrl) const {
+    if (remoteUrl.isEmpty() || !isRemotePoster(remoteUrl))
+        return {};
+    return QString::fromLatin1(QCryptographicHash::hash(remoteUrl.toUtf8(), QCryptographicHash::Sha1).toHex());
+}
+
+bool PosterCache::hasCached(const QString &remoteUrl) const {
+    return !cachedFile(remoteUrl).isEmpty();
+}
+
+QString PosterCache::filePathForId(const QString &id) const {
+    if (id.isEmpty())
+        return {};
+    const QString base = cacheDir() + QLatin1Char('/') + id;
+    for (const QString &ext : {QStringLiteral("jpg"), QStringLiteral("png"), QStringLiteral("webp"), QStringLiteral("img")}) {
+        const QString path = base + QLatin1Char('.') + ext;
+        if (QFile::exists(path))
+            return path;
+    }
+    return {};
+}
+
+bool PosterCache::validCached(const QString &path, const QString &remoteUrl) const {
+    if (path.isEmpty())
+        return false;
+    const qint64 size = QFileInfo(path).size();
+    if (size <= 0)
+        return false;
+    // Файл уже проходил полный декод и с тех пор не менялся (тот же размер) —
+    // не декодируем повторно.
+    auto it = m_validatedSizes.constFind(path);
+    if (it != m_validatedSizes.constEnd() && it.value() == size)
+        return true;
+    if (isValidImageFile(path, remoteUrl)) {
+        m_validatedSizes.insert(path, size);
+        return true;
+    }
+    m_validatedSizes.remove(path);
+    return false;
+}
+
+QString PosterCache::cachedFile(const QString &remoteUrl) const {
+    if (remoteUrl.isEmpty())
+        return {};
+    if (!isRemotePoster(remoteUrl))
+        return remoteUrl;
+
+    if (m_done.contains(remoteUrl)) {
+        const QString path = QUrl(m_done.value(remoteUrl)).toLocalFile();
+        if (validCached(path, remoteUrl))
+            return m_done.value(remoteUrl);
+    }
+
+    const QString path = cachePathFor(remoteUrl);
+    if (validCached(path, remoteUrl))
+        return QUrl::fromLocalFile(path).toString();
+    return {};
+}
+
+bool PosterCache::isRemotePoster(const QString &url) const {
+    return url.startsWith(QStringLiteral("http://"), Qt::CaseInsensitive)
+        || url.startsWith(QStringLiteral("https://"), Qt::CaseInsensitive);
+}
+
+int PosterCache::clearDiskCache() {
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    int removed = 0;
+    for (const QString &sub : {QStringLiteral("posters"), QStringLiteral("http")}) {
+        QDir dir(base + QLatin1Char('/') + sub);
+        if (!dir.exists())
+            continue;
+        for (const QFileInfo &fi : dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot)) {
+            if (QFile::remove(fi.absoluteFilePath()))
+                ++removed;
+        }
+    }
+    // Сбрасываем in-memory карту готовых, иначе cachedFile() вернёт пути на
+    // только что удалённые файлы. Снимок hero в config тоже инвалидируем —
+    // он ссылается на heroImageLocal, которого больше нет.
+    m_done.clear();
+    m_validatedSizes.clear();
+    AppConfig::instance()->clearLastHero();
+    qInfo("PosterCache: disk cache cleared (%d files)", removed);
+    return removed;
+}
+
+void PosterCache::request(const QString &remoteUrl) {
+    if (remoteUrl.isEmpty() || !isRemotePoster(remoteUrl))
+        return;
+
+    const QString existing = cachedFile(remoteUrl);
+    if (!existing.isEmpty()) {
+        m_done.insert(remoteUrl, existing);
+        QMetaObject::invokeMethod(
+            this, [this, remoteUrl, existing]() { emit posterReady(remoteUrl, existing); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_inFlight.contains(remoteUrl) || m_pendingHigh.contains(remoteUrl)
+        || m_pendingNormal.contains(remoteUrl))
+        return;
+
+    m_pendingNormal.append(remoteUrl);
+    pump();
+}
+
+void PosterCache::preloadCatalog(const QVariantList &items) {
+    for (const QVariant &v : items) {
+        const QVariantMap item = v.toMap();
+        const QString hd = item.value(QStringLiteral("posterHd")).toString();
+        const QString poster = item.value(QStringLiteral("poster")).toString();
+        auto usable = [](const QString &u) {
+            return !u.isEmpty() && !u.contains(QStringLiteral("/missing_"));
+        };
+        if (usable(hd))
+            request(hd);
+        else if (usable(poster))
+            request(poster);
+    }
+}
+
+namespace {
+
+constexpr int kStallTimeoutMs = 30000;
+constexpr int kStallCheckIntervalMs = 1000;
+
+void applyImageRequestHeaders(QNetworkRequest &req, const QString &url) {
+    req.setRawHeader("Accept", "image/*,*/*");
+    if (url.contains(QStringLiteral("anilist"), Qt::CaseInsensitive))
+        req.setRawHeader("Referer", "https://anilist.co/");
+    else
+        req.setRawHeader("Referer", "https://shikimori.io/");
+    req.setRawHeader(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0");
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    req.setAttribute(NetworkManager::ImageDownloadRequest, true);
+    req.setTransferTimeout(0);
+}
+
+struct DownloadProgress {
+    qint64 lastBytes = 0;
+    qint64 lastProgressMs = 0;
+};
+
+void noteDownloadProgress(DownloadProgress *state, qint64 bytes, qint64 elapsedMs) {
+    if (bytes > state->lastBytes) {
+        state->lastBytes = bytes;
+        state->lastProgressMs = elapsedMs;
+    } else if (state->lastProgressMs == 0) {
+        state->lastProgressMs = elapsedMs;
+    }
+}
+
+bool isDownloadStalled(const DownloadProgress &state, qint64 elapsedMs) {
+    // До первого байта не рвём — только медленный канал, не обрыв.
+    if (state.lastBytes <= 0)
+        return false;
+    if (state.lastProgressMs == 0)
+        return false;
+    return elapsedMs - state.lastProgressMs >= kStallTimeoutMs;
+}
+
+void logDownloadSpeed(const QString &url, qint64 bytes, qint64 elapsedMs) {
+    if (bytes <= 0 || elapsedMs <= 0)
+        return;
+    const double sec = elapsedMs / 1000.0;
+    const double kbPerSec = (bytes / 1024.0) / sec;
+    qInfo(
+        "PosterCache: download ok %s — %lld bytes, %.1f s, %.1f KB/s",
+        qUtf8Printable(url),
+        static_cast<long long>(bytes),
+        sec,
+        kbPerSec);
+}
+
+QByteArray readCompleteReplyData(QNetworkReply *reply, const QString &url) {
+    QByteArray data = reply->readAll();
+    const QVariant lenHdr = reply->header(QNetworkRequest::ContentLengthHeader);
+    if (lenHdr.isValid()) {
+        const qint64 expected = lenHdr.toLongLong();
+        if (expected > 0 && data.size() < expected) {
+            qWarning(
+                "PosterCache: download truncated %s (%lld/%lld bytes)",
+                qUtf8Printable(url),
+                static_cast<long long>(data.size()),
+                static_cast<long long>(expected));
+            data.clear();
+        }
+    }
+    return data;
+}
+
+struct ImageDownloadResult {
+    QByteArray data;
+    bool stalled = false;
+};
+
+ImageDownloadResult waitForImageDownload(QNetworkReply *reply, const QString &url) {
+    ImageDownloadResult result;
+    QElapsedTimer timer;
+    timer.start();
+    auto progress = std::make_shared<DownloadProgress>();
+
+    QEventLoop loop;
+    QTimer stallCheck;
+    stallCheck.setInterval(kStallCheckIntervalMs);
+
+    QObject::connect(&stallCheck, &QTimer::timeout, reply, [&]() {
+        if (reply->isFinished())
+            return;
+        const qint64 elapsed = timer.elapsed();
+        if (isDownloadStalled(*progress, elapsed)) {
+            result.stalled = true;
+            reply->abort();
+            loop.quit();
+        }
+    });
+    QObject::connect(
+        reply, &QNetworkReply::downloadProgress, reply,
+        [progress, &timer](qint64 received, qint64) {
+            noteDownloadProgress(progress.get(), received, timer.elapsed());
+        });
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+
+    stallCheck.start();
+    loop.exec();
+    stallCheck.stop();
+
+    const qint64 elapsedMs = timer.elapsed();
+    if (result.stalled) {
+        qWarning(
+            "PosterCache: download stalled %s (no data for %d s)",
+            qUtf8Printable(url),
+            kStallTimeoutMs / 1000);
+    } else if (reply->error() == QNetworkReply::NoError) {
+        result.data = readCompleteReplyData(reply, url);
+        if (!result.data.isEmpty())
+            logDownloadSpeed(url, result.data.size(), elapsedMs);
+    } else {
+        qWarning(
+            "PosterCache: download failed %s — %s",
+            qUtf8Printable(url),
+            qUtf8Printable(reply->errorString()));
+    }
+    reply->deleteLater();
+    return result;
+}
+
+void attachStallWatch(PosterCache *owner, QNetworkReply *reply, const QString &url) {
+    auto progress = std::make_shared<DownloadProgress>();
+    auto timer = std::make_shared<QElapsedTimer>();
+    timer->start();
+
+    auto *stallCheck = new QTimer(owner);
+    stallCheck->setInterval(kStallCheckIntervalMs);
+
+    QObject::connect(stallCheck, &QTimer::timeout, owner, [reply, progress, timer, url, stallCheck]() {
+        if (reply->isFinished()) {
+            stallCheck->stop();
+            return;
+        }
+        const qint64 elapsed = timer->elapsed();
+        if (isDownloadStalled(*progress, elapsed)) {
+            qWarning(
+                "PosterCache: download stalled %s (no data for %d s)",
+                qUtf8Printable(url),
+                kStallTimeoutMs / 1000);
+            stallCheck->stop();
+            reply->abort();
+        }
+    });
+    QObject::connect(
+        reply, &QNetworkReply::downloadProgress, reply,
+        [progress, timer](qint64 received, qint64) {
+            noteDownloadProgress(progress.get(), received, timer->elapsed());
+        });
+    QObject::connect(reply, &QNetworkReply::finished, stallCheck, [stallCheck]() {
+        stallCheck->stop();
+        stallCheck->deleteLater();
+    });
+    stallCheck->start();
+}
+
+bool directImageUrl(const QString &url) {
+    // Раньше AniList тоже форсировался напрямую ("через socks5-прокси Kodik
+    // часто даёт Host not found"), но это оказалось верно не для всех прокси:
+    // по логам прямое соединение к s4.anilist.co стабильно виснет ("download
+    // stalled ... no data for 30 s", повторяется при каждом перезапуске), а
+    // через прокси работает нормально. Shikimori, наоборот, напрямую качается
+    // быстро и без обрывов — его и оставляем на прямом соединении. AniList
+    // теперь идёт по общему правилу (через прокси, если включён в настройках).
+    return url.contains(QStringLiteral("shikimori"), Qt::CaseInsensitive);
+}
+
+QNetworkReply *startImageDownload(const QNetworkRequest &baseReq, const QString &url) {
+    if (directImageUrl(url))
+        return NetworkManager::instance()->getLocal(baseReq);
+    if (AppConfig::instance()->proxyEnabled())
+        return NetworkManager::instance()->get(baseReq);
+    return NetworkManager::instance()->getLocal(baseReq);
+}
+
+const char *imageDownloadRoute(const QString &url) {
+    if (url.contains(QStringLiteral("shikimori"), Qt::CaseInsensitive))
+        return "direct (shikimori)";
+    if (AppConfig::instance()->proxyEnabled())
+        return "via proxy";
+    return "direct";
+}
+
+bool expectWideBanner(const QString &remoteUrl) {
+    return remoteUrl.contains(QStringLiteral("anilist"), Qt::CaseInsensitive)
+        || remoteUrl.contains(QStringLiteral("banner"), Qt::CaseInsensitive);
+}
+
+bool isJpegData(const QByteArray &data) {
+    return data.size() >= 2
+        && static_cast<unsigned char>(data[0]) == 0xFF
+        && static_cast<unsigned char>(data[1]) == 0xD8;
+}
+
+bool hasJpegEndMarker(const QByteArray &data) {
+    if (!isJpegData(data))
+        return true;
+    for (int i = data.size() - 2; i >= qMax(0, data.size() - 4096); --i) {
+        if (static_cast<unsigned char>(data[i]) == 0xFF
+            && static_cast<unsigned char>(data[i + 1]) == 0xD9)
+            return true;
+    }
+    return false;
+}
+
+bool hasJpegEndMarkerFile(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    return hasJpegEndMarker(file.readAll());
+}
+
+// Проверка по одним габаритам (без пикселей) — общая для файла и QImage.
+bool isValidImageDims(int w, int h, const QString &remoteUrl) {
+    if (w < 200 || h < 80)
+        return false;
+    if (expectWideBanner(remoteUrl)) {
+        if (w < 500 || w < h * 12 / 10)
+            return false;
+    }
+    return true;
+}
+
+bool isValidHeroImage(const QImage &img, const QString &remoteUrl) {
+    if (img.isNull())
+        return false;
+    return isValidImageDims(img.width(), img.height(), remoteUrl);
+}
+
+bool decodeImageBytes(const QByteArray &data, const QString &remoteUrl, QImage *out) {
+    if (data.size() < 1024 || !hasJpegEndMarker(data))
+        return false;
+    QBuffer buffer;
+    buffer.setData(data);
+    if (!buffer.open(QIODevice::ReadOnly))
+        return false;
+    QImageReader reader(&buffer);
+    const QImage img = reader.read();
+    if (img.isNull() || !isValidHeroImage(img, remoteUrl))
+        return false;
+    if (out)
+        *out = img;
+    return true;
+}
+
+bool isValidImageFile(const QString &path, const QString &remoteUrl) {
+    if (path.isEmpty() || !QFile::exists(path))
+        return false;
+    const qint64 size = QFileInfo(path).size();
+    if (size < 1024)
+        return false;
+    if (expectWideBanner(remoteUrl) && size < 30000)
+        return false;
+    if (!hasJpegEndMarkerFile(path))
+        return false;
+    // Габариты берём из заголовка (QImageReader::size) без полного декода
+    // пикселей — раньше здесь был reader.read() на весь JPEG, и это была
+    // основная стоимость синхронной валидации при первом заходе на вкладку.
+    // Битость файла уже отсеяна проверкой JPEG-маркеров выше; окончательный
+    // декод всё равно происходит в пуле при отрисовке (loadScaledImage).
+    QImageReader reader(path);
+    const QSize dim = reader.size();
+    if (!dim.isValid())
+        return false;
+    return isValidImageDims(dim.width(), dim.height(), remoteUrl);
+}
+
+bool writeValidatedImage(const QString &dest, const QByteArray &data, const QString &remoteUrl) {
+    QImage probe;
+    if (!decodeImageBytes(data, remoteUrl, &probe))
+        return false;
+    QFile::remove(dest);
+    if (!probe.save(dest, "JPEG", 92))
+        return false;
+    return isValidImageFile(dest, remoteUrl);
+}
+
+} // namespace
+
+QString PosterCache::ensureCachedSync(const QString &remoteUrl) {
+    if (remoteUrl.isEmpty() || !isRemotePoster(remoteUrl))
+        return {};
+
+    const QString dest = cachePathFor(remoteUrl);
+
+    if (m_done.contains(remoteUrl)) {
+        const QString path = QUrl(m_done.value(remoteUrl)).toLocalFile();
+        if (isValidImageFile(path, remoteUrl))
+            return m_done.value(remoteUrl);
+        m_done.remove(remoteUrl);
+        QFile::remove(path);
+    }
+    if (isValidImageFile(dest, remoteUrl)) {
+        const QString fileUrl = QUrl::fromLocalFile(dest).toString();
+        m_done.insert(remoteUrl, fileUrl);
+        return fileUrl;
+    }
+
+    QFile::remove(dest);
+    m_done.remove(remoteUrl);
+    m_pendingHigh.removeAll(remoteUrl);
+    m_pendingNormal.removeAll(remoteUrl);
+    m_inFlight.remove(remoteUrl);
+
+    QDir().mkpath(cacheDir());
+
+    const int minBytes = remoteUrl.contains(QStringLiteral("anilist"), Qt::CaseInsensitive) ? 10000 : 1024;
+
+    qInfo(
+        "PosterCache: hero download %s %s (no time limit, stall=%ds)",
+        imageDownloadRoute(remoteUrl),
+        qUtf8Printable(remoteUrl),
+        kStallTimeoutMs / 1000);
+
+    auto downloadBytes = [&](QNetworkRequest::CacheLoadControl mode) -> QByteArray {
+        QNetworkRequest req{QUrl(remoteUrl)};
+        applyImageRequestHeaders(req, remoteUrl);
+        req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, mode);
+        QNetworkReply *reply = startImageDownload(req, remoteUrl);
+        return waitForImageDownload(reply, remoteUrl).data;
+    };
+
+    QByteArray data = downloadBytes(QNetworkRequest::AlwaysNetwork);
+    if (data.size() < minBytes || !writeValidatedImage(dest, data, remoteUrl)) {
+        QFile::remove(dest);
+        data = downloadBytes(QNetworkRequest::AlwaysNetwork);
+        if (data.size() < minBytes || !writeValidatedImage(dest, data, remoteUrl)) {
+            qWarning(
+                "PosterCache: hero image invalid %s (%d bytes)",
+                qUtf8Printable(remoteUrl),
+                data.size());
+            QFile::remove(dest);
+            return {};
+        }
+    }
+
+    const QString fileUrl = QUrl::fromLocalFile(dest).toString();
+    m_done.insert(remoteUrl, fileUrl);
+    emit posterReady(remoteUrl, fileUrl);
+    return fileUrl;
+}
+
+void PosterCache::requestPriority(const QString &remoteUrl) {
+    if (remoteUrl.isEmpty() || !isRemotePoster(remoteUrl))
+        return;
+
+    const QString existing = cachedFile(remoteUrl);
+    if (!existing.isEmpty()) {
+        m_done.insert(remoteUrl, existing);
+        QMetaObject::invokeMethod(
+            this, [this, remoteUrl, existing]() { emit posterReady(remoteUrl, existing); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_inFlight.contains(remoteUrl)) {
+        m_pendingHigh.removeAll(remoteUrl);
+        m_pendingNormal.removeAll(remoteUrl);
+        m_pendingHigh.prepend(remoteUrl);
+        return;
+    }
+
+    m_pendingNormal.removeAll(remoteUrl);
+    if (!m_pendingHigh.contains(remoteUrl))
+        m_pendingHigh.prepend(remoteUrl);
+    pump();
+}
+
+void PosterCache::pump() {
+    while (m_active < kMaxConcurrent) {
+        QString url;
+        if (!m_pendingHigh.isEmpty())
+            url = m_pendingHigh.takeFirst();
+        else if (!m_pendingNormal.isEmpty())
+            url = m_pendingNormal.takeFirst();
+        else
+            break;
+        if (m_inFlight.contains(url))
+            continue;
+
+        m_inFlight.insert(url);
+        ++m_active;
+
+        QDir().mkpath(cacheDir());
+        const QString dest = cachePathFor(url);
+
+        QNetworkRequest req{QUrl(url)};
+        applyImageRequestHeaders(req, url);
+        req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+
+        QNetworkReply *reply = startImageDownload(req, url);
+        auto startedAt = std::make_shared<QElapsedTimer>();
+        startedAt->start();
+        attachStallWatch(this, reply, url);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, url, dest, startedAt]() {
+            bool netOk = false;
+            QByteArray data;
+            if (reply->error() == QNetworkReply::NoError) {
+                data = readCompleteReplyData(reply, url);
+                if (!data.isEmpty()) {
+                    logDownloadSpeed(url, data.size(), startedAt->elapsed());
+                    netOk = true;
+                }
+            } else if (reply->error() != QNetworkReply::OperationCanceledError) {
+                qWarning(
+                    "PosterCache: download failed %s — %s",
+                    qUtf8Printable(url),
+                    qUtf8Printable(reply->errorString()));
+            }
+            reply->deleteLater();
+
+            if (!netOk) {
+                --m_active;
+                m_inFlight.remove(url);
+                pump();
+                return;
+            }
+
+            // Декодирование + пере-сжатие JPEG (writeValidatedImage: decode →
+            // encode q92 → контрольный decode) — десятки-сотни мс на картинку.
+            // Раньше выполнялось прямо здесь, в UI-потоке: при загрузке
+            // каталога (50 постеров) главная заметно фризилась. Уносим в пул.
+            QPointer<PosterCache> self(this);
+            (void)QtConcurrent::run([self, url, dest, data]() {
+                const bool ok = writeValidatedImage(dest, data, url);
+                if (!ok)
+                    QFile::remove(dest);
+                if (!self)
+                    return;
+                QMetaObject::invokeMethod(self.data(), [self, url, dest, ok]() {
+                    if (!self)
+                        return;
+                    --self->m_active;
+                    self->m_inFlight.remove(url);
+                    if (ok) {
+                        const QString fileUrl = QUrl::fromLocalFile(dest).toString();
+                        self->m_done.insert(url, fileUrl);
+                        emit self->posterReady(url, fileUrl);
+                    }
+                    self->pump();
+                }, Qt::QueuedConnection);
+            });
+        });
+    }
+}
