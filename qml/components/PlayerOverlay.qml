@@ -33,6 +33,10 @@ Item {
     property bool audioMenuOpen: false
     property bool subtitleMenuOpen: false
 
+    // Для детекции двойного клика по mpv-правилам (время + расстояние курсора).
+    property point lastClickPos: Qt.point(-10000, -10000)
+    property real lastClickTime: 0
+
     readonly property bool panelsEngaged: root.episodeListOpen || root.audioMenuOpen || root.subtitleMenuOpen || root.uiPinned
 
     readonly property int effectiveMaxEpisode: root.maxEpisode > 0
@@ -339,7 +343,9 @@ Item {
 
     Timer {
         id: leftClickTimer
-        interval: 65
+        // ~250 мс как в mpv/uosc: одиночный клик подтверждается только если за
+        // это время не пришёл второй клик (двойной клик ловится в onDoubleClicked).
+        interval: 250
         onTriggered: {
             if (!root.active)
                 return
@@ -425,6 +431,8 @@ Item {
         onClicked: function(mouse) {
             if (!root.active) return
             if (mouse.button === Qt.LeftButton) {
+                root.lastClickPos = Qt.point(mouse.x, mouse.y)
+                root.lastClickTime = Date.now()
                 leftClickTimer.restart()
             } else if (mouse.button === Qt.RightButton) {
                 root.uiPinned = !root.uiPinned
@@ -446,6 +454,16 @@ Item {
             if (!root.active || mouse.button !== Qt.LeftButton)
                 return
             leftClickTimer.stop()
+            // Qt считает двойным кликом клики в пределах ~400 мс — из-за этого
+            // быстрые pause/play уходили в fullscreen. Ужесточаем как в mpv/uosc:
+            // двойной клик засчитывается только если клики быстрые (<=250 мс)
+            // и курсор почти не сдвинулся. Иначе — это два одиночных клика.
+            var elapsed = Date.now() - root.lastClickTime
+            var dist = Math.hypot(mouse.x - root.lastClickPos.x, mouse.y - root.lastClickPos.y)
+            if (elapsed > 250 || dist > 24) {
+                togglePause()
+                return
+            }
             root.toggleCinema()
         }
 

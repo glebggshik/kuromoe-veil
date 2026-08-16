@@ -1487,26 +1487,50 @@ Item {
             // Shift+колесо — перемотка (±10с). Движение мыши показывает
             // панель и сбрасывает таймер авто-скрытия; курсор прячется
             // вместе с панелью.
+            Timer {
+                id: retroClickTimer
+                // Как в PlayerOverlay.qml (~250 мс mpv/uosc): одиночный клик
+                // подтверждается, только если за это время не пришёл второй.
+                interval: 250
+                onTriggered: player.paused = !player.paused
+            }
             MouseArea {
                 id: playerMouseArea
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 cursorShape: playerHost.controlsVisible ? Qt.ArrowCursor : Qt.BlankCursor
+                // Для детекции двойного клика по mpv-правилам (время + расстояние).
+                property point lastClickPos: Qt.point(-10000, -10000)
+                property real lastClickTime: 0
                 onPositionChanged: playerHost.showControls()
                 onEntered: playerHost.showControls()
 
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.LeftButton) {
-                        player.paused = !player.paused
+                        lastClickPos = Qt.point(mouse.x, mouse.y)
+                        lastClickTime = Date.now()
+                        retroClickTimer.restart()
                     } else if (mouse.button === Qt.RightButton) {
                         playerHost.uiPinned = !playerHost.uiPinned
                         playerHost.showControls()
                     }
                 }
                 onDoubleClicked: function(mouse) {
-                    if (mouse.button === Qt.LeftButton)
-                        root.cinemaMode = !root.cinemaMode
+                    if (mouse.button !== Qt.LeftButton)
+                        return
+                    retroClickTimer.stop()
+                    // Qt считает двойным кликом клики в пределах ~400 мс — из-за
+                    // этого быстрые pause/play уходили в fullscreen (а в retro —
+                    // ещё и успевали переключить паузу). Ужесточаем как mpv/uosc:
+                    // двойной клик только если клики быстрые (<=250 мс) и рядом.
+                    var elapsed = Date.now() - lastClickTime
+                    var dist = Math.hypot(mouse.x - lastClickPos.x, mouse.y - lastClickPos.y)
+                    if (elapsed > 250 || dist > 24) {
+                        player.paused = !player.paused
+                        return
+                    }
+                    root.cinemaMode = !root.cinemaMode
                 }
                 onWheel: function(wheel) {
                     // Вне cinemaMode колесо должно скроллить страницу

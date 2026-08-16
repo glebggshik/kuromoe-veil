@@ -86,17 +86,6 @@ Space — play/pause, F — fullscreen, M — mute, ←/→ — seek, ↑/↓ �
 
 ---
 
-### 10. Double-click → fullscreen (ложные срабатывания)
-**Где:** `PlayerOverlay` (delay ~65 ms)
-
-Быстрые pause/play могут уйти в fullscreen.
-
-**Что сделать:** ужесточить (порог расстояния курсора / ~200–300 ms как у mpv/uosc) — если начнёт бесить.
-
-**Размер:** S
-
----
-
 ### 11. Ошибки источников в UI, не только в логе
 **Где:** `DetailBridge` loadKodik/loadCvh + QML
 
