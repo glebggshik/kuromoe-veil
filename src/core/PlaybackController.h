@@ -70,6 +70,11 @@ public:
     // торрент без Smash).
     Q_INVOKABLE void setSmashAudioHint(const QString &audioTranslationId);
 
+    // Превью на таймлайне (#20): кадр снимается на отдельном тихом mpv_handle
+    // (ThumbnailProbe), основной плеер не трогается. Вызывается из QML с
+    // debounce (~100 мс). Кадр приходит через image://thumbs/frame.
+    Q_INVOKABLE void requestThumbnail(double seconds);
+
     QString titleId() const { return m_titleId; }
     int currentEpisode() const { return m_currentEpisode; }
     int totalEpisodes() const { return m_totalEpisodes; }
@@ -127,6 +132,10 @@ private:
     QString m_currentMagnet;     // для авто-продолжения следующей серии торрента
     QString m_currentTranslationId;
     bool m_currentUseProxy = false;
+    // Для превью на таймлайне: тот же поток, что у основного плеера.
+    QString m_currentThumbUrl;
+    QString m_currentThumbReferer;
+    QString m_currentThumbProxyUrl;
 
     double m_pendingResumeSeconds = -1.0; // -1 = нет отложенного резюме
     quint64 m_playGeneration = 0;         // отменяет устаревшие колбэки playDirectUrl

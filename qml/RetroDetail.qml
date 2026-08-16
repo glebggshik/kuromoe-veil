@@ -1597,6 +1597,24 @@ Item {
             }
         }
 
+        // Постер тайтла на время загрузки/смены серии — вместо чёрного экрана.
+        // Статичный (не слайдшоу): виден пока нет видео или идёт loading,
+        // скрывается как только пошли кадры.
+        Image {
+            id: posterLoading
+            anchors.fill: player
+            visible: !player.hasMedia || player.loading
+            source: root.posterSource
+            fillMode: Image.PreserveAspectCrop
+            smooth: true
+            mipmap: true
+            clip: true
+            Rectangle {
+                anchors.fill: parent
+                color: "#55000000"
+            }
+        }
+
         // Таймлайн — кликабельный, перемотка по позиции клика. Прячется
         // вместе с controlsBar (см. controlsOverlay ниже), но наведение на
         // него само по себе тоже держит панель показанной.
@@ -1619,13 +1637,77 @@ Item {
                 color: RetroTheme.primary
             }
 
+            // Hover-позиция для превью на таймлайне (hoverRatio) + клик-перемотка.
             MouseArea {
+                id: timelineHover
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                property real hoverRatio: -1
+                onPositionChanged: function(mouse) {
+                    if (player.duration > 0)
+                        timelineHover.hoverRatio = Math.max(0, Math.min(1, mouse.x / timeline.width))
+                    playerHost.showControls()
+                }
+                onExited: timelineHover.hoverRatio = -1
                 onClicked: function(mouse) {
                     if (player.duration > 0)
                         player.seek((mouse.x / timeline.width) * player.duration)
                 }
+            }
+        }
+
+        // === Превью на таймлайне (#20): кадр с тихого mpv_handle, debounce
+        // 100 мс, основной плеер не seek-ается. Нет кадра — только время.
+        Item {
+            id: retroThumbPopup
+            visible: timelineHover.hoverRatio >= 0 && player.duration > 0
+            width: 176
+            height: 99
+            x: Math.max(0, Math.min(timeline.width - width,
+                                    timelineHover.hoverRatio * timeline.width - width / 2))
+            y: timeline.y - height - 6
+            z: 20
+            Rectangle {
+                anchors.fill: parent
+                color: "#d8000000"
+                radius: 6
+                border.width: 1
+                border.color: RetroTheme.border
+            }
+            Image {
+                anchors.fill: parent
+                anchors.margins: 3
+                source: "image://thumbs/frame?v=" + thumbProbe.frameVersion
+                cache: false
+                fillMode: Image.PreserveAspectFit
+            }
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                width: retroThumbTime.width + 12
+                height: retroThumbTime.height + 4
+                color: "#cc000000"
+                Text {
+                    id: retroThumbTime
+                    anchors.centerIn: parent
+                    text: playerHost.fmtTime(timelineHover.hoverRatio * player.duration)
+                    font.family: RetroTheme.fontFamily
+                    font.pixelSize: 10
+                    color: "white"
+                }
+            }
+            Timer {
+                id: retroThumbDebounce
+                interval: 100
+                onTriggered: {
+                    if (playback && timelineHover.hoverRatio >= 0 && player.duration > 0)
+                        playback.requestThumbnail(timelineHover.hoverRatio * player.duration)
+                }
+            }
+            Connections {
+                target: timelineHover
+                function onHoverRatioChanged() { retroThumbDebounce.restart() }
             }
         }
 

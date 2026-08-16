@@ -67,6 +67,8 @@ qt_add_executable(anime_client_cpp ${_APP_WIN32_FLAG}
     src/core/StreamReadiness.cpp
     src/core/MpvPlayer.h
     src/core/MpvPlayer.cpp
+    src/core/ThumbnailProbe.h
+    src/core/ThumbnailProbe.cpp
     src/core/PlaybackController.h
     src/core/PlaybackController.cpp
     src/core/Theme.h

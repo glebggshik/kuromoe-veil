@@ -114,6 +114,9 @@ Item {
         || (root.torrentsLoaded && !root.torrentsLoading && root.torrents.length > 0)
     readonly property bool torrentSourceAvailable: root.torrentSourceEnabled
 
+    // Постер для оверлея загрузки плеера (retro имеет такой же posterSource).
+    readonly property string posterSource: root.item.posterHd || root.item.poster || ""
+
     function effectiveTranslationId() {
         if (root.sourceType === "anilibria") return "anilibria"
         if (root.sourceType === "torrent") return "torrent"
@@ -1126,6 +1129,23 @@ Item {
             Component.onDestruction: {
                 root.cinemaMode = false
                 player.stop()
+            }
+        }
+
+        // Постер тайтла на время загрузки/смены серии — вместо чёрного экрана.
+        // Статичный (не слайдшоу), скрывается как только пошли кадры.
+        Image {
+            id: posterLoading
+            anchors.fill: player
+            visible: !player.hasMedia || player.loading
+            source: root.posterSource
+            fillMode: Image.PreserveAspectCrop
+            smooth: true
+            mipmap: true
+            clip: true
+            Rectangle {
+                anchors.fill: parent
+                color: "#55000000"
             }
         }
 

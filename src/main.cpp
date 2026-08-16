@@ -45,6 +45,7 @@
 #include "core/PlaybackController.h"
 #include "core/PosterCache.h"
 #include "core/PosterImageProvider.h"
+#include "core/ThumbnailProbe.h"
 #include "core/PosterThumbnail.h"
 #include "core/RetroTheme.h"
 #include "core/Theme.h"
@@ -222,6 +223,10 @@ int main(int argc, char *argv[]) {
     auto *posterProvider = new PosterImageProvider();
     posterProvider->setParent(&engine);
     engine.addImageProvider(QStringLiteral("posters"), posterProvider);
+    auto *thumbProvider = new ThumbnailImageProvider();
+    thumbProvider->setParent(&engine);
+    engine.addImageProvider(QStringLiteral("thumbs"), thumbProvider);
+    engine.rootContext()->setContextProperty("thumbProbe", ThumbnailProbe::instance());
     // Embedded QML-модуль лежит в ресурсах под :/AnimeClient (qmldir +
     // qml/Main.qml) — без явного импорт-пути движок иногда не находит его
     // через loadFromModule (наблюдалось как "Module AnimeClient contains

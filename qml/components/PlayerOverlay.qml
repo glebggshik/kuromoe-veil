@@ -1005,6 +1005,60 @@ Item {
             }
             onWheel: function(wheel) { root.handleWheel(wheel) }
         }
+
+        // === Превью на таймлайне (#20): кадр снимается на тихом mpv_handle
+        // (ThumbnailProbe), основной плеер не seek-ается. Debounce 100 мс.
+        // Нет кадра (ещё грузится/не готов) — показываем только время.
+        Item {
+            id: thumbPopup
+            visible: uoscTimeline.hovered && uoscTimeline.duration > 0
+            width: 176
+            height: 99
+            x: Math.max(0, Math.min(uoscTimeline.width - width, uoscTimeline.pointerX - width / 2))
+            y: uoscTimeline.y - height - 6
+            z: 20
+            Rectangle {
+                anchors.fill: parent
+                radius: 8
+                color: "#d8000000"
+                border.color: "#4a4a4a"
+            }
+            Image {
+                id: thumbImage
+                anchors.fill: parent
+                anchors.margins: 3
+                source: "image://thumbs/frame?v=" + thumbProbe.frameVersion
+                cache: false
+                fillMode: Image.PreserveAspectFit
+            }
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                width: thumbTimeLabel.width + 12
+                height: thumbTimeLabel.height + 4
+                radius: 4
+                color: "#cc000000"
+                Text {
+                    id: thumbTimeLabel
+                    anchors.centerIn: parent
+                    text: uoscTimeline.previewTimeText
+                    color: "white"
+                    font.pixelSize: 11
+                }
+            }
+            Timer {
+                id: thumbDebounce
+                interval: 100
+                onTriggered: {
+                    if (root.playback && uoscTimeline.hovered && uoscTimeline.duration > 0)
+                        root.playback.requestThumbnail(uoscTimeline.previewSeconds)
+                }
+            }
+            Connections {
+                target: uoscTimeline
+                function onPointerXChanged() { thumbDebounce.restart() }
+            }
+        }
     }
 
     // --- Выбор озвучки/субтитров по центру (как громкость / перемотка)

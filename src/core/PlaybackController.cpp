@@ -5,6 +5,7 @@
 #include "AppConfig.h"
 #include "HistoryManager.h"
 #include "StreamReadiness.h"
+#include "ThumbnailProbe.h"
 
 namespace {
 
@@ -179,6 +180,11 @@ void PlaybackController::onStreamReady(const QString &url) {
     // Kodik CDN проверяет Referer на m3u8/сегментах — без него отдаёт
     // ошибку, которую mpv репортит как "loading failed".
     const QString referer = refererFor(m_currentTranslationId, url);
+    // Превью на таймлайне: тот же поток грузится на тихом handle, но лениво —
+    // при первом наведении на таймлайн (requestThumbnail).
+    m_currentThumbUrl = url;
+    m_currentThumbReferer = referer;
+    m_currentThumbProxyUrl = proxyUrl;
     m_player->playUrl(url, QString("Серия %1").arg(m_currentEpisode), proxyUrl, referer);
     setStatusMessage(QString());
 }
@@ -236,6 +242,13 @@ void PlaybackController::onPlayerPosition() {
 
 void PlaybackController::setSmashAudioHint(const QString &audioTranslationId) {
     m_smashAudioTranslationId = audioTranslationId;
+}
+
+void PlaybackController::requestThumbnail(double seconds) {
+    if (m_currentThumbUrl.isEmpty())
+        return;
+    ThumbnailProbe::instance()->loadIfNeeded(m_currentThumbUrl, m_currentThumbReferer, m_currentThumbProxyUrl);
+    ThumbnailProbe::instance()->requestThumbnail(seconds);
 }
 
 void PlaybackController::onPlayerEndOfFile() {
