@@ -32,6 +32,36 @@ sudo apt install cmake ninja-build pkg-config \
   qt6-base-dev qt6-declarative-dev libqt6svg6-dev libmpv-dev
 ```
 
+**Установка (Linux, «собрал — в меню»)**
+
+Три команды — и ярлык появляется в меню:
+
+```bash
+git clone https://github.com/glebggshik/kuromoe-veil.git
+cd kuromoe-veil
+cmake -S . -B build
+cmake --build build
+cmake --install build --prefix $HOME/.local
+```
+
+Что получается:
+
+| Путь | Что |
+|------|-----|
+| `~/.local/bin/anime_client_cpp` | бинарь |
+| `~/.local/share/applications/kuromoe-veil.desktop` | ярлык меню (Exec — на установленный бинарь) |
+| `~/.local/share/pixmaps/kuromoe-veil.png` | иконка |
+
+`gen_icon` запускать не нужно — иконка берётся из `resources/app.png`.
+
+Если меню не видит ярлык сразу:
+
+```bash
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
+Переустановка (после пересборки): достаточно повторить `cmake --build build && cmake --install build --prefix $HOME/.local` — ярлык перезапишется с актуальным путём.
+
 **Windows (vcpkg, только эти порты)**
 
 ```bat
