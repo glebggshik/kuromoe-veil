@@ -45,15 +45,16 @@ PRAGMA synchronous=NORMAL;
 ## P2 — инфра и гигиена
 
 ### 15. Unit-тесты (то, что не зависит от сети)
-**Кандидаты:**
+**Сделано:** `EpisodeParser` — `tests/test_episode_parser.cpp`, Qt Test, подключён к
+`ctest` (`include(CTest)` + `add_subdirectory(tests)`, `-DBUILD_TESTING=OFF` отключает).
+Заодно тест поймал и починил баг: формат `S01E05` (сезон+серия) не распознавался.
+
+**Осталось:**
 | Модуль | Почему легко |
 |--------|----------------|
-| `EpisodeParser` | чистые строки → int |
 | torrent relevance / query builders | вынести из анонимного namespace `DetailBridge.cpp` |
 | `HistoryManager` | temp SQLite file |
 | Kodik HTML parse | fixtures из `tools/` dumps |
-
-CMake target + Qt Test / Catch2. Без CI сначала — `ctest` локально.
 
 **Размер:** M
 

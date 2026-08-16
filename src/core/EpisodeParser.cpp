@@ -22,6 +22,10 @@ int EpisodeParser::parse(const QString &fileName) {
     // Приоритет — от самых однозначных шаблонов к самым общим, чтобы
     // "Episode 05" не спутать с произвольным числом где-то в названии.
     static const QVector<QRegularExpression> patterns = {
+        // "S01E05", "s1e05" — сезон+серия (частый формат TV/HD-раздач).
+        // Раньше не распознавался: \b в e05-шаблоне не срабатывает, потому
+        // что перед "E" идёт цифра сезона (границы слова нет).
+        QRegularExpression(R"(\b[Ss]\d{1,2}[Ee]0*(\d{1,4})\b)"),
         // "Episode 05", "Эпизод 05", "Ep.05", "Ep 05"
         QRegularExpression(R"((?:episode|эпизод|серия|ep)[\s._-]*0*(\d{1,4})\b)",
                             QRegularExpression::CaseInsensitiveOption),

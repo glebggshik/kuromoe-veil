@@ -391,3 +391,10 @@ if(UNIX AND NOT APPLE)
         RENAME anime_client_cpp.png
         OPTIONAL)
 endif()
+
+# --- Тесты (не зависящие от сети) ---
+# Включаются по умолчанию; отключить: -DBUILD_TESTING=OFF
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
