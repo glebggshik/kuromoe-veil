@@ -949,6 +949,16 @@ void MpvPlayer::onMpvEvents() {
                 emit loadingChanged();
                 emit hasMediaChanged();
                 emit mpvError(QString("Не удалось открыть поток: %1").arg(mpv_error_string(event->error)));
+            } else if ((event->reply_userdata == CmdSeek || event->reply_userdata == CmdSeekRelative)
+                       && event->error >= 0) {
+                // Seek выполнен: на паузе pos-таймер остановлен
+                // (applyPausedResourcePolicy), иначе прогресс-бар не двигался
+                // бы до снятия паузы. Читаем позицию сразу после seek.
+                double pos = 0.0;
+                if (mpv_get_property(m_mpv, "time-pos", MPV_FORMAT_DOUBLE, &pos) >= 0) {
+                    m_position = pos;
+                    emitPositionIfNeeded(pos);
+                }
             }
             break;
         case MPV_EVENT_END_FILE: {
