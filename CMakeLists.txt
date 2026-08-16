@@ -390,13 +390,32 @@ endforeach()
 endif() # WIN32 — конец Windows-деплоя DLL/плагинов
 
 # Linux: install binary + desktop entry (optional prefix)
+# `cmake --install build --prefix $HOME/.local` кладёт бинарь в $HOME/.local/bin,
+# иконку в $HOME/.local/share/pixmaps, ярлык в $HOME/.local/share/applications —
+# меню подхватывает его. Exec/Icon генерируются при install() из реального
+# префикса, ничего не хардкодится.
 if(UNIX AND NOT APPLE)
     include(GNUInstallDirs)
     install(TARGETS anime_client_cpp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(FILES "${CMAKE_SOURCE_DIR}/resources/app.png"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
-        RENAME anime_client_cpp.png
+        RENAME kuromoe-veil.png
         OPTIONAL)
+    # В install(CODE) ${} внутри "..." подставляется на этапе конфигурации —
+    # относительные каталоги пекём здесь, а CMAKE_INSTALL_PREFIX оставляем
+    # динамическим (\$ — раскроется при install(), в т.ч. при --prefix).
+    set(_linux_bindir "${CMAKE_INSTALL_BINDIR}")
+    set(_linux_datadir "${CMAKE_INSTALL_DATADIR}")
+    install(CODE "
+        # Имена переменных совпадают с плейсхолдерами в .desktop.in (@BINDIR@
+        # заменяется configure_file на значение переменной BINDIR — регистр важен).
+        set(BINDIR \"\${CMAKE_INSTALL_PREFIX}/${_linux_bindir}\")
+        set(ICONDIR \"\${CMAKE_INSTALL_PREFIX}/${_linux_datadir}/pixmaps\")
+        set(_appdir \"\${CMAKE_INSTALL_PREFIX}/${_linux_datadir}/applications\")
+        file(MAKE_DIRECTORY \"\${_appdir}\")
+        configure_file(\"${CMAKE_SOURCE_DIR}/packaging/linux/kuromoe-veil.desktop.in\"
+                       \"\${_appdir}/kuromoe-veil.desktop\" @ONLY)
+    ")
 endif()
 
 # --- Тесты (не зависящие от сети) ---

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=KuroMoe Veil
+GenericName=Anime Client
+Comment=Аниме-клиент: Shikimori, Kodik/AnimeGO/AniLibria, торренты (TorrServer)
+# Exec/Icon подставляются при `cmake --install` (см. CMakeLists.txt) — реальный
+# префикс, без хардкода путей.
+Exec=@BINDIR@/anime_client_cpp
+Icon=@ICONDIR@/kuromoe-veil.png
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupWMClass=anime_client_cpp
