@@ -13,6 +13,7 @@ Item {
     property color trackColor: "#80000000"
     property color progressColor: "#ffffff"
     property real chromeActive: 0
+    property string fontFamily: ""
 
     property real pointerX: -1
     property real dragStartSeconds: 0
@@ -90,12 +91,12 @@ Item {
         return label
     }
 
-    // 1. Трек — тонкая полоса у края; фон зоны даёт bottomSolid
+    // 1. Трек — тонкая полоса у ВЕРХНЕГО края зоны; ниже — область скраба
     Rectangle {
         id: backgroundTrack
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.top: parent.top
         height: root.progressLineH
         radius: 2
         color: root.chromeExpanded ? "transparent" : root.trackColor
@@ -115,6 +116,17 @@ Item {
                 enabled: !mouseArea.pressed
                 NumberAnimation { duration: 55; easing.type: Easing.OutCubic }
             }
+        }
+
+        // Текущее время — у правого конца таймлайна (вне clip-контейнера).
+        Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 4
+            anchors.top: backgroundTrack.top
+            text: root.formatTime(root.player ? root.player.position : 0)
+            color: "#ffffff"
+            font.family: root.fontFamily
+            font.pixelSize: 11
         }
 
         // Превью перемотки — отдельная полоса

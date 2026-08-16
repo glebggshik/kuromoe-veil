@@ -1136,6 +1136,7 @@ Item {
             maxEpisode: root.currentMaxEpisode
             cinemaMode: root.cinemaMode
             posterSource: root.posterSource
+            audioSyncTitleId: root.item && root.item.id ? root.item.id : ""
             onRequestCinemaToggle: root.cinemaMode = !root.cinemaMode
             onRequestEpisode: function(ep) {
                 if (ep < 1 || ep > root.currentMaxEpisode) return

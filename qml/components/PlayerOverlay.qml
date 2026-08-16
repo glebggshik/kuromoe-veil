@@ -19,6 +19,9 @@ Item {
     // Ретро: плеер встроен в прокручиваемую страницу — вне cinema колесо
     // должно скроллить страницу, а не крутить громкость.
     property bool wheelPassThroughOutsideCinema: false
+    // Для кнопки «SAVE» в попапе задержки звука (audioDelay) — id тайтла
+    // из темы; пустой — кнопка сохранения скрыта.
+    property string audioSyncTitleId: ""
 
     readonly property bool active: player && player.hasMedia
     property bool cinemaMode: false
@@ -42,12 +45,13 @@ Item {
 
     property bool audioMenuOpen: false
     property bool subtitleMenuOpen: false
+    property bool delayPanelOpen: false
 
     // Для детекции двойного клика по mpv-правилам (время + расстояние курсора).
     property point lastClickPos: Qt.point(-10000, -10000)
     property real lastClickTime: 0
 
-    readonly property bool panelsEngaged: root.episodeListOpen || root.audioMenuOpen || root.subtitleMenuOpen || root.uiPinned
+    readonly property bool panelsEngaged: root.episodeListOpen || root.audioMenuOpen || root.subtitleMenuOpen || root.delayPanelOpen || root.uiPinned
 
     readonly property int effectiveMaxEpisode: root.maxEpisode > 0
         ? root.maxEpisode
@@ -119,7 +123,7 @@ Item {
     }
 
     function scheduleAutoHide() {
-        if (root.uiPinned || root.stickyEpisodeList || root.audioMenuOpen || root.subtitleMenuOpen)
+        if (root.uiPinned || root.stickyEpisodeList || root.audioMenuOpen || root.subtitleMenuOpen || root.delayPanelOpen)
             return
         hideTimer.restart()
     }
@@ -347,7 +351,7 @@ Item {
         id: hideTimer
         interval: root.hideDelayMs
         onTriggered: {
-            if (root.uiPinned || root.stickyEpisodeList || root.audioMenuOpen || root.subtitleMenuOpen)
+            if (root.uiPinned || root.stickyEpisodeList || root.audioMenuOpen || root.subtitleMenuOpen || root.delayPanelOpen)
                 return
             root.hideAllTargets()
         }
@@ -870,13 +874,14 @@ Item {
             }
         }
 
-        // Контролы над таймлайном (фиксированный отступ — без цикла с uoscTimeline)
+        // Контролы внизу; таймлайн — НАД ними (полоска вверху, область
+        // скраба под ней).
         Item {
             id: bottomBlock
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: root.timelineHitH + 4
+            anchors.bottomMargin: 4
             height: root.controlsH + 8
             opacity: parent.chromeOpacity
             visible: opacity > 0.01
@@ -911,28 +916,16 @@ Item {
                         }
                     }
 
-                    Column {
+                    // Название тайтла; время — у конца таймлайна (см. uoscTimeline).
+                    Text {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.min(280, bottomBlock.width * 0.34)
-                        spacing: 1
-
-                        Text {
-                            width: parent.width
-                            elide: Text.ElideRight
-                            color: root.fg
-                            font.family: root.fontFamily
-                            font.pixelSize: 12
-                            font.bold: true
-                            text: root.headerTitle
-                        }
-                        Text {
-                            width: parent.width
-                            elide: Text.ElideRight
-                            color: root.fg
-                            font.family: root.fontFamily
-                            font.pixelSize: 11
-                            text: root.timeLineText
-                        }
+                        elide: Text.ElideRight
+                        color: root.fg
+                        font.family: root.fontFamily
+                        font.pixelSize: 12
+                        font.bold: true
+                        text: root.headerTitle
                     }
                 }
 
@@ -945,13 +938,6 @@ Item {
                         size: 36
                         buttonEnabled: root.playback && root.playback.currentEpisode > 1
                         onClicked: root.requestEpisode(root.playback.currentEpisode - 1)
-                    }
-                    // Пропуск опенинга (ретро-фича): +1:27 вперёд.
-                    UoscButton {
-                        label: "OP"
-                        size: 32
-                        visible: root.showSkipOpening
-                        onClicked: player.seekRelative(87)
                     }
                     UoscButton {
                         iconSource: player.paused ? root.playerIcon("play.svg") : root.playerIcon("pause.svg")
@@ -971,18 +957,20 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
 
+                    // Пропуск опенинга (+1:27) — на месте бывших −10/+10.
                     UoscButton {
-                        label: "−10"
-                        size: 34
-                        onClicked: root.seekSeconds(-10)
-                    }
-                    UoscButton {
-                        label: "+10"
-                        size: 34
-                        onClicked: root.seekSeconds(10)
+                        label: "OP"
+                        size: 32
+                        visible: root.showSkipOpening
+                        onClicked: player.seekRelative(87)
                     }
 
-                    Item { width: 4; height: 1 }
+                    UoscButton {
+                        label: "DLY"
+                        size: 32
+                        active: delayPanelOpen
+                        onClicked: root.delayPanelOpen = !root.delayPanelOpen
+                    }
 
                     UoscButton {
                         iconSource: root.playerIcon("audio.svg")
@@ -1029,17 +1017,64 @@ Item {
             }
         }
 
+        // === Попап задержки звука (audioDelay) ===
+        Rectangle {
+            id: delayPanel
+            visible: root.delayPanelOpen
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.bottom: bottomBlock.top
+            anchors.bottomMargin: 8
+            width: 230
+            height: delayCol.implicitHeight + 16
+            radius: 8
+            color: "#e0202020"
+            border.width: 1
+            border.color: "#4a4a4a"
+            z: 12
+            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton }
+
+            Column {
+                id: delayCol
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 6
+
+                Text {
+                    text: "Задержка звука: " + (player.audioDelay >= 0 ? "+" : "") + player.audioDelay.toFixed(1) + "s"
+                    color: root.fg
+                    font.family: root.fontFamily
+                    font.pixelSize: 12
+                }
+                Row {
+                    width: parent.width
+                    spacing: 6
+                    UoscButton { label: "−0.1"; size: 34; onClicked: player.audioDelay = Math.round((player.audioDelay - 0.1) * 10) / 10 }
+                    UoscButton { label: "+0.1"; size: 34; onClicked: player.audioDelay = Math.round((player.audioDelay + 0.1) * 10) / 10 }
+                    UoscButton { label: "0"; size: 34; onClicked: player.audioDelay = 0 }
+                }
+                UoscButton {
+                    label: "SAVE PRESET"
+                    size: 34
+                    visible: root.audioSyncTitleId !== ""
+                    onClicked: appConfig.setAudioSyncOffset(root.audioSyncTitleId, player.audioDelay)
+                }
+            }
+        }
+
+        // Таймлайн НАД контролами: полоска вверху, область скраба под ней.
         UoscTimeline {
             id: uoscTimeline
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
+            anchors.bottom: bottomBlock.top
             height: root.timelineHitH
             player: root.player
             z: 3
             chromeActive: parent.chromeOpacity
             trackColor: root.trackBg
             progressColor: root.trackFill
+            fontFamily: root.fontFamily
             onHoverChanged: function(hovered) {
                 if (!hovered)
                     return
