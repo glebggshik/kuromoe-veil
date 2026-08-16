@@ -570,6 +570,7 @@ void DetailBridge::load(const QVariant &item) {
     ++m_kodikGen;
     ++m_animetkaGen;
     ++m_hentaiSourcesGen;
+    ++m_loadGen;
     emit statusChanged();
 
     QVariantMap progress = HistoryManager::instance()->loadProgress(id);
@@ -600,8 +601,12 @@ void DetailBridge::load(const QVariant &item) {
     }
 
     QPointer<DetailBridge> self(this);
-    m_shikimori.getDetails(id, [self, id](QVariantMap details, QString err) {
-        if (!self)
+    // Поколение текущей загрузки — все колбэки ниже (Shikimori/AniList/
+    // AniLibria/related) режутся по нему, чтобы при быстром открытии
+    // тайтла B результаты тайтла A не применялись к нему.
+    const int loadGen = m_loadGen;
+    m_shikimori.getDetails(id, [self, id, loadGen](QVariantMap details, QString err) {
+        if (!self || loadGen != self->m_loadGen)
             return;
         if (!err.isEmpty() || details.isEmpty())
             return;
@@ -632,8 +637,8 @@ void DetailBridge::load(const QVariant &item) {
         } else {
             const QString title = self->m_item.value(QStringLiteral("title")).toString();
             const QString originalTitle = self->m_item.value(QStringLiteral("originalTitle")).toString();
-            self->m_anilist.fetchBanner(malId, title, originalTitle, [self](QString bannerUrl) {
-                if (!self || bannerUrl.isEmpty())
+            self->m_anilist.fetchBanner(malId, title, originalTitle, [self, loadGen](QString bannerUrl) {
+                if (!self || loadGen != self->m_loadGen || bannerUrl.isEmpty())
                     return;
                 self->m_item[QStringLiteral("heroBanner")] = bannerUrl;
                 PosterCache::instance()->requestPriority(bannerUrl);
@@ -645,8 +650,8 @@ void DetailBridge::load(const QVariant &item) {
             });
         }
 
-        self->m_anilist.fetchTitles(malId, [self](AniListClient::MediaTitles titles) {
-            if (!self)
+        self->m_anilist.fetchTitles(malId, [self, loadGen](AniListClient::MediaTitles titles) {
+            if (!self || loadGen != self->m_loadGen)
                 return;
             bool enriched = false;
             if (!titles.english.isEmpty()
@@ -691,8 +696,8 @@ void DetailBridge::load(const QVariant &item) {
             m_item.value(QStringLiteral("originalTitle")).toString(),
             m_item.value(QStringLiteral("kind")).toString(),
             m_item.value(QStringLiteral("year")).toInt(),
-            [self](QVariantMap release, QString err) {
-        if (!self)
+            [self, loadGen](QVariantMap release, QString err) {
+        if (!self || loadGen != self->m_loadGen)
             return;
         const QString title = self->m_item.value(QStringLiteral("title")).toString();
         if (!err.isEmpty())
@@ -717,8 +722,8 @@ void DetailBridge::load(const QVariant &item) {
         emit anilibriaReady(false);
     }
 
-    m_shikimori.getRelated(id, [self](QVariantList items, QString err) {
-        if (self && err.isEmpty())
+    m_shikimori.getRelated(id, [self, loadGen](QVariantList items, QString err) {
+        if (self && loadGen == self->m_loadGen && err.isEmpty())
             emit self->relatedReady(items);
     });
 }

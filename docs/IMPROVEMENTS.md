@@ -55,17 +55,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 6. Generation / cancel при уходе с экрана деталей
-**Где:** `DetailBridge::load` и цепочки Kodik/CVH/JacRed/…
-
-При быстром открытии нескольких тайтлов копятся in-flight запросы (лишний трафик, риск rate-limit/ban).
-
-**Что сделать:** уже есть gen для CVH/Kodik/torrents — проверить, что **все** колбэки (AniLibria, related, AniList, hentai) жёстко режутся по gen; при `load` нового id — cancel/ignore старых.
-
-**Размер:** S–M
-
----
-
 ### 11. Ошибки источников в UI, не только в логе
 **Где:** `DetailBridge` loadKodik/loadCvh + QML
 

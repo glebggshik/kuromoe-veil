@@ -81,6 +81,10 @@ private:
     int m_kodikGen = 0;
     int m_animetkaGen = 0;
     int m_hentaiSourcesGen = 0;
+    // Единое поколение загрузки страницы: режет ВСЕ колбэки load()
+    // (Shikimori getDetails, AniList banner/titles, AniLibria, related) —
+    // иначе быстрый переход A→B применял к тайтлу B результаты A.
+    int m_loadGen = 0;
     bool m_kodikReady = false;
     bool m_animetkaReady = false;
     bool m_hentasisReady = false;
