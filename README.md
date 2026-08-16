@@ -40,6 +40,15 @@ vcpkg install --triplet x64-windows
 
 Манифест `vcpkg.json` тянет `qtbase` + `qtdeclarative` + `qtsvg`. libmpv отдельно: готовая dev-сборка в `C:/dev/libmpv` (shinchiro).
 
+Если libmpv лежит в другом месте — переопредели при конфигурации (или через env `MPV_ROOT_HINT` / `MPV_ROOT`):
+
+```bat
+cmake -S . -B build -DMPV_ROOT_HINT=C:/путь/к/libmpv ^
+      -DMPV_DLL=C:/путь/к/libmpv/bin/libmpv-2.dll
+```
+
+CMake ищет `include/mpv/client.h`, `lib/mpv` и `bin/libmpv-2.dll` относительно `MPV_ROOT_HINT`; в крайнем случае задай `-DMPV_INCLUDE_DIR=... -DMPV_LIBRARY=...` напрямую.
+
 Подробности — в [docs/MANUAL.md](docs/MANUAL.md).
 
 ## Настройки

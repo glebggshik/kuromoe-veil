@@ -61,15 +61,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 17. CMake / deploy
-Ручной `POST_BUILD` copy плагинов Qt/mpv хрупкий, но работает.
-
-**Что сделать (когда будет время):** `windeployqt` + явный copy `libmpv-2.dll`; document `MPV_ROOT` / env вместо только `C:/dev/libmpv`.
-
-**Размер:** M
-
----
-
 ## P3 — полировка
 
 | # | Что | Зачем | Размер |
