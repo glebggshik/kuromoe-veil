@@ -11,7 +11,6 @@
 #include <QtGlobal>
 #include <QIcon>
 #include <QQuickWindow>
-#include <QQuickWindow>
 #include <QSGRendererInterface>
 
 #include <QMutex>

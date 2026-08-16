@@ -30,6 +30,11 @@ if(WIN32)
     if(NOT MPV_INCLUDE_DIR OR NOT MPV_LIBRARY)
         message(FATAL_ERROR "libmpv не найден. Укажи -DMPV_INCLUDE_DIR=... -DMPV_LIBRARY=...")
     endif()
+    if(NOT EXISTS "${MPV_DLL}")
+        message(FATAL_ERROR "libmpv-2.dll не найден: ${MPV_DLL} (нужен рядом с exe на Windows)")
+    endif()
+    message(STATUS "libmpv: ${MPV_LIBRARY}")
+    message(STATUS "libmpv dll: ${MPV_DLL}")
     set(MPV_LINK_LIBS ${MPV_LIBRARY})
 else()
     find_package(PkgConfig REQUIRED)
@@ -254,6 +259,7 @@ add_custom_command(TARGET anime_client_cpp POST_BUILD
 # Qt6_DIR = <vcpkg installed>/x64-windows/share/Qt6 -> на 2 уровня выше
 # лежит сам префикс триплета (x64-windows), где живут Qt6/plugins и debug/Qt6/plugins.
 set(QT_INSTALL_PREFIX "${Qt6_DIR}/../..")
+message(STATUS "Qt deploy prefix: ${QT_INSTALL_PREFIX}")
 add_custom_command(TARGET anime_client_cpp POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:anime_client_cpp>/platforms"
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:anime_client_cpp>/plugins/platforms"
