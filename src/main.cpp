@@ -38,6 +38,7 @@
 #include "core/CatalogBridge.h"
 #include "core/DetailBridge.h"
 #include "core/HistoryManager.h"
+#include "core/HealthCheck.h"
 #include "core/StatusStore.h"
 #include "core/MpvPlayer.h"
 #include "core/NetworkManager.h"
@@ -233,6 +234,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("appConfig", AppConfig::instance());
     engine.rootContext()->setContextProperty("historyManager", HistoryManager::instance());
     engine.rootContext()->setContextProperty("posterCache", PosterCache::instance());
+    engine.rootContext()->setContextProperty("healthCheck", HealthCheck::instance());
 
     // Theme — обычный QObject как контекстное свойство (не QML-синглтон),
     // ровно как в Python-версии (qt_bridge/theme.py) — старые компоненты

@@ -465,5 +465,63 @@ Flickable {
                 wrapMode: Text.WordWrap
             }
         }
+
+        // === ПРОВЕРКА ПОДКЛЮЧЕНИЙ (HEALTH-CHECK) ===
+        Column {
+            x: 20
+            width: Math.min(560, parent.width - 40)
+            spacing: 8
+
+            FieldLabel { text: "HEALTH-CHECK" }
+            Text {
+                width: parent.width
+                text: "// диагностика «почему не играет»: прокси, TorrServer, Kodik, JacRed"
+                font.family: RetroTheme.fontFamily
+                font.pixelSize: 10
+                color: RetroTheme.mutedForeground
+                wrapMode: Text.WordWrap
+            }
+            RetroButton {
+                label: healthCheck.checking ? "CHECKING…" : "CHECK"
+                onClicked: healthCheck.checkAll()
+            }
+            Repeater {
+                model: [
+                    { key: "proxy", label: "PROXY" },
+                    { key: "torrserver", label: "TORRSERVER" },
+                    { key: "kodik", label: "KODIK" },
+                    { key: "jacred", label: "JACRED" }
+                ]
+                delegate: Row {
+                    width: parent.width
+                    spacing: 8
+                    Text {
+                        width: 110
+                        text: modelData.label + ":"
+                        font.family: RetroTheme.fontFamily
+                        font.pixelSize: 10
+                        color: RetroTheme.mutedForeground
+                    }
+                    Text {
+                        width: parent.width - 118
+                        wrapMode: Text.WordWrap
+                        font.family: RetroTheme.fontFamily
+                        font.pixelSize: 10
+                        color: {
+                            const st = healthCheck.results[modelData.key]
+                            if (!st) return RetroTheme.mutedForeground
+                            if (st.state === "ok") return RetroTheme.primary
+                            if (st.state === "fail") return RetroTheme.destructive
+                            return RetroTheme.accent
+                        }
+                        text: {
+                            const st = healthCheck.results[modelData.key]
+                            if (!st) return "// не проверялось"
+                            return st.state === "checking" ? "// проверяется…" : "// " + st.message
+                        }
+                    }
+                }
+            }
+        }
     }
 }

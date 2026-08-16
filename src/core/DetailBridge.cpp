@@ -595,11 +595,16 @@ void DetailBridge::searchTorrents() {
             return;
         self->m_jacredTorrents = rankTorrentResults(*accumulated, self->m_item, minScore);
         self->m_jacredSearchDone = true;
-        if (self->m_deferredTorrentSearch) {
+        // Отложенный re-search (после обогащения названий) нужен ТОЛЬКО если
+        // текущий поиск не нашёл ничего. Раньше при наличии результатов они
+        // выбрасывались и поиск гонялся второй раз целиком — лишняя задержка
+        // и лишние запросы к JacRed/Sukebei (риск 429).
+        if (self->m_deferredTorrentSearch && self->m_jacredTorrents.isEmpty()) {
             self->m_deferredTorrentSearch = false;
             self->searchTorrents();
             return;
         }
+        self->m_deferredTorrentSearch = false;
         self->emitMergedTorrents();
     };
 

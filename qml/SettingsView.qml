@@ -536,6 +536,64 @@ Item {
                 }
             }
 
+            // === Проверка подключений (Health-check) ===
+            Column {
+                width: parent.width
+                spacing: 8
+                Text { text: "Проверка подключений"; color: Theme.textSecondary; font.pixelSize: 12 }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Диагностика «почему не играет»: прокси, TorrServer, Kodik, JacRed."
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                }
+                Row {
+                    width: parent.width
+                    spacing: 10
+                    PillButton {
+                        text: healthCheck.checking ? "Проверяю…" : "Проверить"
+                        enabled: !healthCheck.checking
+                        onClicked: healthCheck.checkAll()
+                    }
+                }
+                Repeater {
+                    model: [
+                        { key: "proxy", label: "Прокси" },
+                        { key: "torrserver", label: "TorrServer" },
+                        { key: "kodik", label: "Kodik" },
+                        { key: "jacred", label: "JacRed" }
+                    ]
+                    delegate: Row {
+                        width: parent.width
+                        spacing: 8
+                        Text {
+                            width: 90
+                            text: modelData.label + ":"
+                            color: Theme.textSecondary
+                            font.pixelSize: 12
+                        }
+                        Text {
+                            width: parent.width - 98
+                            wrapMode: Text.WordWrap
+                            color: {
+                                var st = healthCheck.results[modelData.key]
+                                if (!st) return Theme.textSecondary
+                                if (st.state === "ok") return Theme.good
+                                if (st.state === "fail") return Theme.bad
+                                return Theme.warn
+                            }
+                            font.pixelSize: 12
+                            text: {
+                                var st = healthCheck.results[modelData.key]
+                                if (!st) return "не проверялось"
+                                return st.state === "checking" ? "проверяется…" : st.message
+                            }
+                        }
+                    }
+                }
+            }
+
             Item { width: 1; height: 16 }
         }
     }
