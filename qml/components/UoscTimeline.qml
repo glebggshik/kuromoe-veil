@@ -165,6 +165,10 @@ Item {
             root.pushPreview(true)
         }
         onPositionChanged: function(mouse) {
+            // Всегда отслеживаем курсор — превью на таймлайне (и попап кадра)
+            // идёт из-под курсора. Seek — только при зажатой кнопке, чтобы
+            // простое наведение не перематывало основной плеер.
+            root.pointerX = mouse.x
             if (pressed)
                 seekAt(mouse.x)
         }

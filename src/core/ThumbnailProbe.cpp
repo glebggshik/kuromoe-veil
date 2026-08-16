@@ -172,27 +172,30 @@ void ThumbnailProbe::handleCommandReply(mpv_event *event) {
         return;
     }
     if (id == kCmdSeek) {
-        // Seek завершён — можно снимать кадр.
         if (event->error < 0) {
             qWarning("ThumbnailProbe: seek failed: %s", mpv_error_string(event->error));
+            m_shotInFlight = false;
+            if (m_pendingSeconds >= 0.0)
+                doSeekAndShot(); // пришёл новый запрос во время неудачного seek
             return;
         }
         sendScreenshotRequest();
         return;
     }
     if (id == kCmdShot) {
-        const double seconds = m_pendingSeconds;
-        m_pendingSeconds = -1.0;
+        m_shotInFlight = false;
+        const double seconds = m_shotSeconds;
+        m_shotSeconds = -1.0;
         if (event->error < 0) {
             qWarning("ThumbnailProbe: screenshot-raw failed: %s", mpv_error_string(event->error));
-            return;
+        } else if (auto *cmd = static_cast<mpv_event_command *>(event->data)) {
+            const QImage image = imageFromRawScreenshot(cmd->result);
+            if (!image.isNull())
+                applyImage(image, seconds);
         }
-        auto *cmd = static_cast<mpv_event_command *>(event->data);
-        if (!cmd)
-            return;
-        const QImage image = imageFromRawScreenshot(cmd->result);
-        if (!image.isNull())
-            applyImage(image, seconds);
+        // Запрос, пришедший, пока был в полёте текущий seek+shot.
+        if (m_pendingSeconds >= 0.0)
+            doSeekAndShot();
         return;
     }
 }
@@ -218,7 +221,10 @@ void ThumbnailProbe::ensureLoaded(const QString &url, const QString &referer, co
     m_loadedUrl = url;
     m_fileReady = false;
     m_pendingSeconds = -1.0;
+    m_shotInFlight = false;
     m_lastImage = QImage();
+    m_frameVersion = 0;
+    emit frameChanged();
 
     // Те же referrer/http-proxy, что у основного плеера (MpvPlayer::playUrl).
     if (referer.isEmpty())
@@ -241,7 +247,9 @@ void ThumbnailProbe::ensureLoaded(const QString &url, const QString &referer, co
             mpv_set_property_string(m_mpv, "http-proxy", proxyBytes.constData());
     }
 
-    const char *cmd[] = {"loadfile", url.toUtf8().constData(), "replace", nullptr};
+    // m_loadUrlBytes живёт до COMMAND_REPLY (mpv_command_async не копирует args).
+    m_loadUrlBytes = url.toUtf8();
+    const char *cmd[] = {"loadfile", m_loadUrlBytes.constData(), "replace", nullptr};
     mpv_command_async(m_mpv, kCmdLoad, cmd);
 }
 
@@ -251,15 +259,20 @@ void ThumbnailProbe::requestThumbnail(double seconds) {
     m_pendingSeconds = seconds;
     if (!m_mpv || !m_fileReady)
         return; // дождёмся FILE_LOADED
+    if (m_shotInFlight)
+        return; // новый запрос учтён в m_pendingSeconds — выполнится после shot
     doSeekAndShot();
 }
 
 void ThumbnailProbe::doSeekAndShot() {
     if (!m_mpv)
         return;
-    char arg[32];
-    snprintf(arg, sizeof(arg), "%.3f", m_pendingSeconds);
-    const char *cmd[] = {"seek", arg, "absolute", nullptr};
+    m_shotInFlight = true;
+    m_shotSeconds = m_pendingSeconds;
+    m_pendingSeconds = -1.0;
+    // m_seekArg живёт до COMMAND_REPLY.
+    m_seekArg = QByteArray::number(m_shotSeconds, 'f', 3);
+    const char *cmd[] = {"seek", m_seekArg.constData(), "absolute", nullptr};
     mpv_command_async(m_mpv, kCmdSeek, cmd);
 }
 
@@ -273,7 +286,10 @@ void ThumbnailProbe::sendScreenshotRequest() {
 void ThumbnailProbe::stop() {
     m_fileReady = false;
     m_pendingSeconds = -1.0;
+    m_shotInFlight = false;
     m_lastImage = QImage();
+    m_frameVersion = 0;
+    emit frameChanged();
     m_loadedUrl.clear();
     if (m_mpv)
         mpv_command_string(m_mpv, "stop");

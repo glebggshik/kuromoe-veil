@@ -1008,13 +1008,16 @@ Item {
 
         // === Превью на таймлайне (#20): кадр снимается на тихом mpv_handle
         // (ThumbnailProbe), основной плеер не seek-ается. Debounce 100 мс.
-        // Нет кадра (ещё грузится/не готов) — показываем только время.
+        // Нет кадра (ещё грузится/источник не отдал) — только время, без
+        // чёрной плашки.
         Item {
             id: thumbPopup
             visible: uoscTimeline.hovered && uoscTimeline.duration > 0
-            width: 176
-            height: 99
-            x: Math.max(0, Math.min(uoscTimeline.width - width, uoscTimeline.pointerX - width / 2))
+            readonly property bool hasFrame: thumbProbe.frameVersion > 0
+            width: thumbPopup.hasFrame ? 176 : (thumbTimePill.width + 12)
+            height: thumbPopup.hasFrame ? 99 : (thumbTimePill.height + 4)
+            x: Math.max(0, Math.min(uoscTimeline.width - width,
+                                    uoscTimeline.pointerX - width / 2))
             y: uoscTimeline.y - height - 6
             z: 20
             Rectangle {
@@ -1022,16 +1025,19 @@ Item {
                 radius: 8
                 color: "#d8000000"
                 border.color: "#4a4a4a"
+                visible: thumbPopup.hasFrame
             }
             Image {
                 id: thumbImage
                 anchors.fill: parent
                 anchors.margins: 3
+                visible: thumbPopup.hasFrame
                 source: "image://thumbs/frame?v=" + thumbProbe.frameVersion
                 cache: false
                 fillMode: Image.PreserveAspectFit
             }
             Rectangle {
+                id: thumbTimePill
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 width: thumbTimeLabel.width + 12

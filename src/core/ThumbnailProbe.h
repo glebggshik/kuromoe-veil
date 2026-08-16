@@ -69,6 +69,17 @@ private:
     QImage m_lastImage;
     quint64 m_frameVersion = 0;
 
+    // Буферы команд держим живыми ДО COMMAND_REPLY: mpv_command_async не
+    // гарантирует копирование args — url.toUtf8().constData() / стековый
+    // char[] к моменту выполнения команды уже мусор (load/seek/screenshot
+    // уходили пустыми, кадр не приходил).
+    QByteArray m_loadUrlBytes;
+    QByteArray m_seekArg;
+    // Один seek+shot в полёте: пока не пришёл screenshot, новый seek не
+    // слать (HLS/Kodik могут вообще не дать кадр — тогда просто нет кадра).
+    bool m_shotInFlight = false;
+    double m_shotSeconds = -1.0;
+
     enum : uint64_t {
         kCmdLoad = 1000,
         kCmdSeek = 1001,

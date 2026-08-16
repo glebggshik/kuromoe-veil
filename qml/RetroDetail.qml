@@ -1658,12 +1658,14 @@ Item {
         }
 
         // === Превью на таймлайне (#20): кадр с тихого mpv_handle, debounce
-        // 100 мс, основной плеер не seek-ается. Нет кадра — только время.
+        // 100 мс, основной плеер не seek-ается. Нет кадра — только время,
+        // без чёрной плашки.
         Item {
             id: retroThumbPopup
             visible: timelineHover.hoverRatio >= 0 && player.duration > 0
-            width: 176
-            height: 99
+            readonly property bool hasFrame: thumbProbe.frameVersion > 0
+            width: retroThumbPopup.hasFrame ? 176 : (retroThumbTimePill.width + 12)
+            height: retroThumbPopup.hasFrame ? 99 : (retroThumbTimePill.height + 4)
             x: Math.max(0, Math.min(timeline.width - width,
                                     timelineHover.hoverRatio * timeline.width - width / 2))
             y: timeline.y - height - 6
@@ -1674,15 +1676,18 @@ Item {
                 radius: 6
                 border.width: 1
                 border.color: RetroTheme.border
+                visible: retroThumbPopup.hasFrame
             }
             Image {
                 anchors.fill: parent
                 anchors.margins: 3
+                visible: retroThumbPopup.hasFrame
                 source: "image://thumbs/frame?v=" + thumbProbe.frameVersion
                 cache: false
                 fillMode: Image.PreserveAspectFit
             }
             Rectangle {
+                id: retroThumbTimePill
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 width: retroThumbTime.width + 12
