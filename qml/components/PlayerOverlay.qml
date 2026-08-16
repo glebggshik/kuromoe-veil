@@ -323,11 +323,7 @@ Item {
             seekFlashAnim.restart()
         } else {
             var vstep = wheel.angleDelta.y > 0 ? 5 : -5
-            player.volume = Math.max(0, Math.min(100, player.volume + vstep))
-            root.stickyVolume = true
-            root.volumeOpacity = 1
-            volumeFlash.flashLabel = "🔊 " + player.volume + "%"
-            volumeFlashAnim.restart()
+            root.adjustVolume(vstep)
         }
     }
 
@@ -371,6 +367,17 @@ Item {
         root.scheduleAutoHide()
     }
 
+    function adjustVolume(step) {
+        if (!root.active)
+            return
+        player.volume = Math.max(0, Math.min(100, player.volume + step))
+        root.stickyVolume = true
+        root.volumeOpacity = 1
+        volumeFlash.flashLabel = "🔊 " + player.volume + "%"
+        volumeFlashAnim.restart()
+        root.showCursor()
+    }
+
     Shortcut {
         sequence: "Space"
         enabled: root.active
@@ -397,6 +404,30 @@ Item {
         sequence: "Right"
         enabled: root.active
         onActivated: root.seekSeconds(10)
+    }
+
+    Shortcut {
+        sequence: "M"
+        enabled: root.active
+        onActivated: {
+            player.muted = !player.muted
+            volumeFlash.flashLabel = player.muted ? "🔇 muted" : "🔊 " + player.volume + "%"
+            volumeFlashAnim.restart()
+            root.showCursor()
+            root.scheduleAutoHide()
+        }
+    }
+
+    Shortcut {
+        sequence: "Up"
+        enabled: root.active
+        onActivated: root.adjustVolume(5)
+    }
+
+    Shortcut {
+        sequence: "Down"
+        enabled: root.active
+        onActivated: root.adjustVolume(-5)
     }
 
     // --- Слой ввода (поверх видео, под UI)

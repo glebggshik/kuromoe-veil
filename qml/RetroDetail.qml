@@ -1459,6 +1459,30 @@ Item {
                 playerHost.showControls()
             }
         }
+        Shortcut {
+            sequence: "M"
+            enabled: playerHost.playerActive
+            onActivated: {
+                player.muted = !player.muted
+                playerHost.showControls()
+            }
+        }
+        Shortcut {
+            sequence: "Up"
+            enabled: playerHost.playerActive
+            onActivated: {
+                player.volume = Math.min(100, player.volume + 5)
+                playerHost.showControls()
+            }
+        }
+        Shortcut {
+            sequence: "Down"
+            enabled: playerHost.playerActive
+            onActivated: {
+                player.volume = Math.max(0, player.volume - 5)
+                playerHost.showControls()
+            }
+        }
 
         function fmtTime(seconds) {
             if (!seconds || seconds < 0 || isNaN(seconds))

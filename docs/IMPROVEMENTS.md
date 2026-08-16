@@ -77,15 +77,6 @@ PRAGMA synchronous=NORMAL;
 
 ---
 
-### 9. Горячие клавиши в cinema mode
-**Где:** `PlayerOverlay` / cinema layer (есть в `docs/PROGRESS.md` как TODO)
-
-Space — play/pause, F — fullscreen, M — mute, ←/→ — seek, ↑/↓ — volume.
-
-**Размер:** S–M
-
----
-
 ### 11. Ошибки источников в UI, не только в логе
 **Где:** `DetailBridge` loadKodik/loadCvh + QML
 

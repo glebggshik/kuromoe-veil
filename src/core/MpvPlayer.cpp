@@ -331,6 +331,7 @@ MpvPlayer::MpvPlayer(QQuickItem *parent) : QQuickFramebufferObject(parent) {
     mpv_observe_property(m_mpv, PropDuration, "duration", MPV_FORMAT_DOUBLE);
     mpv_observe_property(m_mpv, PropPause, "pause", MPV_FORMAT_FLAG);
     mpv_observe_property(m_mpv, PropVolume, "volume", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(m_mpv, PropMute, "mute", MPV_FORMAT_FLAG);
     mpv_observe_property(m_mpv, PropSpeed, "speed", MPV_FORMAT_DOUBLE);
 
     m_positionTimer = new QTimer(this);
@@ -579,6 +580,17 @@ void MpvPlayer::setVolume(int v) {
     double vol = static_cast<double>(v);
     mpv_set_property(m_mpv, "volume", MPV_FORMAT_DOUBLE, &vol);
     emit volumeChanged();
+}
+
+void MpvPlayer::setMuted(bool m) {
+    if (m == m_muted)
+        return;
+    m_muted = m;
+    if (m_mpv) {
+        int flag = m ? 1 : 0;
+        mpv_set_property(m_mpv, "mute", MPV_FORMAT_FLAG, &flag);
+    }
+    emit mutedChanged();
 }
 
 void MpvPlayer::setSpeed(double s) {
@@ -1000,6 +1012,14 @@ void MpvPlayer::onMpvEvents() {
                 if (vol != m_volume) {
                     m_volume = vol;
                     emit volumeChanged();
+                }
+                break;
+            }
+            case PropMute: {
+                bool muted = *static_cast<int *>(prop->data) != 0;
+                if (muted != m_muted) {
+                    m_muted = muted;
+                    emit mutedChanged();
                 }
                 break;
             }

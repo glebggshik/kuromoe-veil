@@ -37,6 +37,7 @@ class MpvPlayer : public QQuickFramebufferObject {
     Q_PROPERTY(bool hasMedia READ hasMedia NOTIFY hasMediaChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY mutedChanged)
     Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
     Q_PROPERTY(QString renderBackend READ renderBackend NOTIFY renderBackendChanged)
     Q_PROPERTY(QVariantList audioTracks READ audioTracks NOTIFY tracksChanged)
@@ -78,6 +79,8 @@ public:
 
     int volume() const { return m_volume; }
     void setVolume(int v);
+    bool muted() const { return m_muted; }
+    void setMuted(bool m);
     double speed() const { return m_speed; }
     void setSpeed(double s);
 
@@ -90,6 +93,7 @@ signals:
     void hasMediaChanged();
     void loadingChanged();
     void volumeChanged();
+    void mutedChanged();
     void speedChanged();
     void renderBackendChanged();
     void tracksChanged();
@@ -129,6 +133,7 @@ private:
         PropPause = 3,
         PropVolume = 4,
         PropSpeed = 5,
+        PropMute = 6,
     };
 
     enum CommandId : uint64_t {
@@ -160,6 +165,7 @@ private:
     QElapsedTimer m_positionEmitClock;
     double m_lastEmittedPosition = -1.0;
     int m_volume = 100;
+    bool m_muted = false;
     double m_speed = 1.0;
     QVariantList m_audioTracks;
     QVariantList m_subtitleTracks;
